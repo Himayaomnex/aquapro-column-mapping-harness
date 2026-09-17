@@ -1,0 +1,28 @@
+# Environment and Secrets
+.env
+*.env
+.env.local
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated Document Outputs & Logs
+output/
+tests/data/test_*
+*.log
+.system_generated/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
