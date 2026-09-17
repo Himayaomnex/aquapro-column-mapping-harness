@@ -743,7 +743,7 @@ class UnifiedHarness:
         output_path: str = "output/Control_Plan.xlsx"
     ) -> ExecutionLog:
         initial_state: AgentState = {
-            "task": task or f"Execute {self.capability_id} from: {file_path or production_item_name or document_reference}",
+            "task": task or f"Execute {self.capability_id} from: {file_path or production_item_name or 'source'}",
             "file_path": file_path,
             "production_item_name": production_item_name,
             "output_path": output_path,
