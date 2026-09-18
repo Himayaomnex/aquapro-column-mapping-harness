@@ -99,9 +99,6 @@ def _clean_control_text(text: Optional[str], prefixes: List[str]) -> Optional[st
         if cleaned.lower().startswith(prefix.lower()):
             cleaned = cleaned[len(prefix):].strip(" :-")
             break
-    words = cleaned.split()
-    if len(words) > 10:
-        cleaned = " ".join(words[:10])
     return cleaned if cleaned else None
 
 
@@ -147,7 +144,7 @@ def _build_control_plan_rows(
 
     for idx, item in enumerate(mapped_context.items, start=1):
         row_key = f"{item.operation_number}_{idx}"
-        draft = (draft_fields or {}).get(row_key, {})
+        draft = (draft_fields or {}).get(row_key) or (draft_fields or {}).get(item.operation_number) or {}
 
         # 1. CARRY Fields
         prod_item = item.production_item_name
@@ -247,7 +244,7 @@ def _build_pfmea_vda_rows(
 
     for idx, item in enumerate(mapped_context.items, start=1):
         row_key = f"{item.operation_number}_{idx}"
-        draft = (draft_fields or {}).get(row_key, {})
+        draft = (draft_fields or {}).get(row_key) or (draft_fields or {}).get(item.operation_number) or {}
 
         s = item.severity_rating or 5
         o = item.occurrence_rating or 3

@@ -6,7 +6,7 @@ and preserves row traceability.
 Deterministic, zero LLM calls.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import os
 import openpyxl
 

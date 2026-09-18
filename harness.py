@@ -382,10 +382,11 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
 
             if json_str:
                 parsed_rows = json.loads(json_str)
-                for row_obj in parsed_rows:
+                for idx, row_obj in enumerate(parsed_rows, start=1):
                     op_num = str(row_obj.get("operation_number", "")).strip()
                     if op_num:
                         draft_dict_by_op[op_num] = row_obj
+                        draft_dict_by_op[f"{op_num}_{idx}"] = row_obj
         except Exception as e:
             print(f"[compose_node Info] Standardizing drafted rows via excel_builder: {e}")
 
@@ -819,7 +820,7 @@ class UnifiedHarness:
             capability_id=self.capability_id,
             status=final_state["status"],
             source_type="file" if file_path else ("rag" if production_item_name else "existing_document"),
-            source_identifier=file_path or production_item_name or document_reference or "",
+            source_identifier=file_path or production_item_name or final_state.get("document_reference") or "",
             total_source_operations=len(final_state["mapped_context"].source_operations) if final_state.get("mapped_context") else 0,
             output_rows_count=len(final_state.get("built_rows", [])),
             unmapped_headers=final_state["mapped_context"].unmapped_headers if final_state.get("mapped_context") else [],
@@ -872,7 +873,7 @@ def main():
     parser.add_argument("--file", "-f", type=str, help="Path to input Excel file (Path A)")
     parser.add_argument("--item", "-i", type=str, help="Production item name for RAG (Path B)")
     parser.add_argument("--output", "-o", type=str, default="output/Control_Plan.xlsx", help="Output path for .xlsx")
-    parser.add_argument("--capability", "-c", type=str, default="control_plan_from_pfmea", help="Capability ID")
+    parser.add_argument("--capability", "-c", type=str, default=None, help="Capability ID")
 
     args = parser.parse_args()
 
@@ -880,17 +881,20 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    # Capability resolution: explicit flag or inferred from task prompt
-    cap = args.capability
-    task_lower = (args.task or "").lower()
-    if "vda" in task_lower and "pfmea" in task_lower:
-        cap = "pfmea_aiag_to_vda"
-    elif "vda" in task_lower and "dfmea" in task_lower:
-        cap = "dfmea_aiag_to_vda"
-    elif "dfmea to pfmea" in task_lower or "link" in task_lower:
-        cap = "dfmea_to_pfmea"
-    elif "ad_hoc" in task_lower or "which" in task_lower or "what" in task_lower or "?" in task_lower:
-        cap = "ad_hoc"
+    # Capability resolution: explicit flag takes precedence, otherwise inferred from task prompt
+    if args.capability:
+        cap = args.capability
+    else:
+        cap = "control_plan_from_pfmea"
+        task_lower = (args.task or "").lower()
+        if "vda" in task_lower and "pfmea" in task_lower:
+            cap = "pfmea_aiag_to_vda"
+        elif "vda" in task_lower and "dfmea" in task_lower:
+            cap = "dfmea_aiag_to_vda"
+        elif "dfmea to pfmea" in task_lower or "link" in task_lower:
+            cap = "dfmea_to_pfmea"
+        elif "ad_hoc" in task_lower or "which" in task_lower or "what" in task_lower or "?" in task_lower:
+            cap = "ad_hoc"
 
     item_name = args.item
     # Extract item name from task prompt if not explicitly passed via --item

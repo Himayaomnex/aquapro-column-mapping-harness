@@ -14,8 +14,7 @@ from .models import MappedContextItem, MappedContext
 SYNONYM_MAP: Dict[str, List[str]] = {
     "production_item_name": [
         "production item name", "production item", "part name", "part description",
-        "item name", "product name", "component name", "part/process", "cd6 fr",
-        "process item", "1. process item"
+        "item name", "product name", "component name", "part/process", "cd6 fr"
     ],
     "process_segment_name": [
         "process segment name", "process segment", "process step", "process stage",
@@ -202,14 +201,25 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
         proc_segment = str(canonical_values.get("process_segment_name") or "").strip() or None
 
         # Intelligent prefix disambiguation: e.g. '81 Material allocation...'
-        for candidate in [item_name, op_name]:
-            m = re.match(r"^(\d+(?:[_\-]\d+)?)[_\s]+(.*)$", candidate)
+        for candidate_field, candidate_val in [("op_name", op_name), ("item_name", item_name)]:
+            if not candidate_val:
+                continue
+            m = re.match(r"^(\d+(?:[_\-]\d+)?)[_\s]+(.*)$", candidate_val)
             if m:
                 extracted_op = m.group(1)
+                remainder = m.group(2).strip()
                 if op_num != extracted_op:
                     if not proc_segment and op_num:
                         proc_segment = op_num
                     op_num = extracted_op
+                if candidate_field == "op_name":
+                    op_name = remainder
+                elif candidate_field == "item_name":
+                    if not op_name or op_name == f"Operation {op_num}":
+                        op_name = remainder
+                    # Clean item_name
+                    if item_name == candidate_val and remainder:
+                        item_name = remainder
                 break
 
         # Check if new operation declared or inherit active operation for continuation rows
