@@ -31,6 +31,7 @@ One object per evidence item.
 
 ---
 
+{% if capability_id == "control_plan_from_pfmea" or not capability_id %}
 ## Column-by-column rules (for Control Plan)
 
 ### CARRY — copy verbatim from evidence, no modification
@@ -92,4 +93,13 @@ If either rating is missing from the row: write `null`.
 **`reaction_plan`**
 - Derivation rule: derive a standard containment action ONLY if `detective_control` is non-null.
   Example: "Contain suspect parts. Notify Quality Lead and adjust process parameters."
-- If `detective_control` is null: write `null` unconditionally. Rule V5 rejects reaction plan without detective control.\n
+- If `detective_control` is null: write `null` unconditionally. Rule V5 rejects reaction plan without detective control.
+{% else %}
+## Column-by-column rules (for {{ capability_id }})
+
+Follow the complete schema, output keys, and invariant authoring rules defined in the **Capability Contract** above.
+- Populate all mandatory canonical keys for this capability.
+- CARRY verbatim values directly from the assembled evidence.
+- Calculate Action Priority and Risk ratings strictly per the standard AIAG-VDA logic.
+- Honor all Mandatory Abstention rules: leave ungrounded fields as `null` without hallucination.
+{% endif %}\n

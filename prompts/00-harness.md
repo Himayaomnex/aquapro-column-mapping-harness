@@ -31,7 +31,7 @@ those are harness code triggered by the output of the previous step.
 
 Your very first `plan` output must declare which capability you are fulfilling.
 
-Read the `trigger_description` in each file under `capabilities/`.
+Review the supported capabilities listed below.
 Pick the one that matches what the user is asking for. State it explicitly:
 
 ```json

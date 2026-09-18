@@ -138,9 +138,22 @@ def map_headers(raw_headers: List[str]) -> Tuple[Dict[str, str], List[str]]:
                 break
 
         if not matched:
+            # Substring / partial matching fallback for minor phrasing variations
+            # (skip short aliases like 's', 'o', 'd' to prevent false positive collisions)
+            for canonical_key, aliases in SYNONYM_MAP.items():
+                for alias in aliases:
+                    if len(alias) >= 5 and (alias in clean or clean in alias):
+                        header_to_canonical[raw_header] = canonical_key
+                        matched = True
+                        break
+                if matched:
+                    break
+
+        if not matched:
             unmapped_headers.append(raw_header)
 
     return header_to_canonical, unmapped_headers
+
 
 
 def _parse_int(val: Any) -> Any:

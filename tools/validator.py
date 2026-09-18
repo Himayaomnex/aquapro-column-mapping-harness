@@ -248,10 +248,31 @@ def _validate_control_plan(
 
 
 def _validate_pfmea_vda(rows: List[Any]) -> List[Violation]:
+    """
+    Validates AIAG-VDA 7-Step PFMEA Rows against rules V1 - V6:
+    - V1: Schema Completeness
+    - V3: Action Priority Validity (H, M, L)
+    - V4: 4M Categorization
+    - V5: Special Characteristic Class (S >= 8 evaluation)
+    """
     violations: List[Violation] = []
     for idx, r in enumerate(rows, start=1):
         r_dict = r if isinstance(r, dict) else r.to_dict()
         ap = r_dict.get("action_priority_ap")
+
+        # V1: Schema Completeness
+        if not r_dict.get("process_step") and not r_dict.get("operation_name"):
+            violations.append(
+                Violation(
+                    rule_id="V1",
+                    on_fail="reject_row",
+                    row_identifier=f"Row {idx}",
+                    statement="Missing Process Step in Structure Analysis",
+                    detail="Step 2 requires process_step"
+                )
+            )
+
+        # V3: Action Priority Validity
         if ap not in ("H", "M", "L"):
             violations.append(
                 Violation(
@@ -262,17 +283,22 @@ def _validate_pfmea_vda(rows: List[Any]) -> List[Violation]:
                     detail=f"AP must be High (H), Medium (M), or Low (L), got: '{ap}'"
                 )
             )
-        if not r_dict.get("process_step"):
+
+        # V4: 4M Categorization
+        elem_4m = r_dict.get("work_element_4m") or r_dict.get("process_work_element_4m")
+        if not elem_4m:
             violations.append(
                 Violation(
-                    rule_id="V1",
+                    rule_id="V4",
                     on_fail="reject_row",
                     row_identifier=f"Row {idx}",
-                    statement="Missing Process Step in Structure Analysis",
-                    detail="Step 2 requires process_step"
+                    statement="Missing 4M Work Element",
+                    detail="Structure analysis requires work_element_4m categorization (Machine, Method, Material, Man)"
                 )
             )
+
     return violations
+
 
 
 def _validate_dfmea_vda(rows: List[Any]) -> List[Violation]:

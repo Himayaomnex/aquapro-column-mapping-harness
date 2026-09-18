@@ -538,45 +538,103 @@ def verify_node(state: AgentState) -> Dict[str, Any]:
 def repair_node(state: AgentState) -> Dict[str, Any]:
     """
     Model Node: Self-repair on violations using prompts/30-repair.md.
+    Invokes LLM with repair prompt; falls back to deterministic code-based repair.
     """
     attempt = state["repair_attempts"] + 1
     print(f"\n--- [LangGraph: repair_node] Self-Repair Round {attempt} of 2 ---")
 
+    # Serialize previous draft for the repair prompt
+    prev_draft_json = []
+    for r in state.get("built_rows", []):
+        if hasattr(r, "to_dict"):
+            prev_draft_json.append(r.to_dict())
+        elif hasattr(r, "model_dump"):
+            prev_draft_json.append(r.model_dump())
+        elif isinstance(r, dict):
+            prev_draft_json.append(r)
+        else:
+            prev_draft_json.append(dict(r))
+
+    repair_prompt = REPAIR_TEMPLATE.render(
+        repair_attempt=attempt,
+        previous_draft=json.dumps(prev_draft_json, indent=2),
+        violations=[v.model_dump() if hasattr(v, "model_dump") else v for v in state["violations"]]
+    )
+
+    llm_repaired = False
     repaired_rows: List[Any] = []
     is_baseline = bool(state.get("document_reference"))
 
-    for idx, row in enumerate(state["built_rows"], start=1):
-        if hasattr(row, "operation_number"):
-            row_id = f"Row {idx} (Op {row.operation_number})"
-            row_dict = row.to_dict()
-        elif isinstance(row, dict):
-            op_num = row.get("operation_number") or row.get("process_step") or idx
-            row_id = f"Row {idx} (Op {op_num})"
-            row_dict = dict(row)
-        else:
-            row_id = f"Row {idx}"
-            row_dict = dict(row)
+    if GEMINI_API_KEY:
+        try:
+            llm = get_llm()
+            full_prompt = f"{HARNESS_PROMPT}\n\n---\n\n{repair_prompt}"
+            response = llm.invoke(full_prompt)
+            raw_resp = response.content
+            if isinstance(raw_resp, list):
+                resp_text = "\n".join([b.get("text", "") if isinstance(b, dict) else str(b) for b in raw_resp])
+            else:
+                resp_text = str(raw_resp)
 
-        row_violations = [v for v in state["violations"] if v.row_identifier == row_id]
+            code_block = re.search(r'```(?:json)?\s*(\[\s*\{.*?\}\s*\])\s*```', resp_text, re.DOTALL)
+            json_str = code_block.group(1) if code_block else None
+            if not json_str:
+                json_match = re.search(r'\[\s*\{.*\}\s*\]', resp_text, re.DOTALL)
+                json_str = json_match.group(0) if json_match else None
 
-        for v in row_violations:
-            if v.rule_id == "V3" and not is_baseline:
-                for k in ["specification_tolerance", "tool_number", "tool_name", "gage_number", "sample_size", "sample_frequency"]:
-                    if k in row_dict:
-                        row_dict[k] = None
-            if v.rule_id == "V5":
-                if "reaction_plan" in row_dict:
-                    row_dict["reaction_plan"] = None
-            if v.rule_id == "V4":
-                if "evaluation_measurement_technique" in v.detail and "evaluation_measurement_technique" in row_dict:
-                    row_dict["evaluation_measurement_technique"] = None
-                if "control_method" in v.detail and "control_method" in row_dict:
-                    row_dict["control_method"] = None
+            if json_str:
+                parsed_repair = json.loads(json_str)
+                if isinstance(parsed_repair, list) and len(parsed_repair) > 0:
+                    cap_id = state.get("capability_id", "control_plan_from_pfmea")
+                    if cap_id == "control_plan_from_pfmea":
+                        for item in parsed_repair:
+                            if isinstance(item, dict):
+                                repaired_rows.append(ControlPlanRow(**item))
+                    else:
+                        repaired_rows = parsed_repair
+                    llm_repaired = True
+                    print(f"[repair_node] Successfully applied LLM self-repair.")
+        except Exception as e:
+            print(f"[repair_node Warning] LLM repair call failed ({type(e).__name__}: {e}). Falling back to code repair.")
 
-        if isinstance(row, ControlPlanRow):
-            repaired_rows.append(ControlPlanRow(**row_dict))
-        else:
-            repaired_rows.append(row_dict)
+    if not llm_repaired:
+        # Code-level deterministic fallback repair
+        for idx, row in enumerate(state["built_rows"], start=1):
+            if hasattr(row, "operation_number"):
+                row_id = f"Row {idx} (Op {row.operation_number})"
+                row_dict = row.to_dict()
+            elif isinstance(row, dict):
+                op_num = row.get("operation_number") or row.get("process_step") or idx
+                row_id = f"Row {idx} (Op {op_num})"
+                row_dict = dict(row)
+            else:
+                row_id = f"Row {idx}"
+                row_dict = dict(row)
+
+            row_violations = [v for v in state["violations"] if v.row_identifier == row_id]
+
+            for v in row_violations:
+                if v.rule_id == "V1":
+                    for col in ["operation_number", "operation_name", "product_characteristic", "process_characteristic"]:
+                        if col not in row_dict:
+                            row_dict[col] = None
+                if v.rule_id == "V3" and not is_baseline:
+                    for k in ["specification_tolerance", "tool_number", "tool_name", "gage_number", "sample_size", "sample_frequency"]:
+                        if k in row_dict:
+                            row_dict[k] = None
+                if v.rule_id == "V5":
+                    if "reaction_plan" in row_dict:
+                        row_dict["reaction_plan"] = None
+                if v.rule_id == "V4":
+                    if "evaluation_measurement_technique" in v.detail and "evaluation_measurement_technique" in row_dict:
+                        row_dict["evaluation_measurement_technique"] = None
+                    if "control_method" in v.detail and "control_method" in row_dict:
+                        row_dict["control_method"] = None
+
+            if isinstance(row, ControlPlanRow):
+                repaired_rows.append(ControlPlanRow(**row_dict))
+            else:
+                repaired_rows.append(row_dict)
 
     return {
         "built_rows": repaired_rows,
