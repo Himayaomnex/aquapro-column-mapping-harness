@@ -6,6 +6,11 @@
 ## Capability contract
 {{ capability_contract }}
 
+{% if active_skill %}
+## Applied Skill Workflow & Rules
+{{ active_skill }}
+{% endif %}
+
 ## Assembled evidence
 {{ assembled_evidence }}
 

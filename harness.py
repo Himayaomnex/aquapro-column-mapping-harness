@@ -226,7 +226,19 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             print(f"[plan_node Info] Using deterministic dispatch: {e}")
 
     # Deterministic dispatch for all 3 paths
-    cap = state.get("capability_id") or "control_plan_from_pfmea"
+    cap = state.get("capability_id")
+    if not cap:
+        task_lower = (state.get("task") or "").lower()
+        if any(w in task_lower for w in ["which", "why", "how many", "analyze", "?", "who", "where"]):
+            cap = "ad_hoc"
+        elif "vda" in task_lower and "dfmea" in task_lower:
+            cap = "dfmea_aiag_to_vda"
+        elif "vda" in task_lower:
+            cap = "pfmea_aiag_to_vda"
+        elif "link" in task_lower or "dfmea to pfmea" in task_lower:
+            cap = "dfmea_to_pfmea"
+        else:
+            cap = "control_plan_from_pfmea"
 
     # Path A: File upload
     if state.get("file_path"):
@@ -387,6 +399,20 @@ def _load_capability_contract(capability_id: str) -> str:
     return f"Execute quality engineering transformation under capability '{capability_id}'."
 
 
+def _load_skill_for_capability(capability_id: str) -> str:
+    """Loads the procedural skill workflow matching the declared capability."""
+    skill_map = {
+        "control_plan_from_pfmea": "skills/convert_pfmea_to_control_plan.md",
+        "pfmea_aiag_to_vda": "skills/convert_pfmea_aiag_to_vda.md",
+        "dfmea_aiag_to_vda": "skills/convert_dfmea_aiag_to_vda.md",
+        "dfmea_to_pfmea": "skills/link_dfmea_to_pfmea.md",
+    }
+    rel_path = skill_map.get(capability_id)
+    if rel_path:
+        return load_text(rel_path)
+    return ""
+
+
 def compose_node(state: AgentState) -> Dict[str, Any]:
     """
     Model Node: Authors document rows from canonical evidence under capability contract.
@@ -397,10 +423,12 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
     print("-" * 85)
     print(f"  Authoring Policy: CARRY verbatim | AUTHOR AP & Special Chars | ABSTAIN blanking")
     cap_contract = _load_capability_contract(cap_id)
+    active_skill = _load_skill_for_capability(cap_id)
     prompt = COMPOSE_TEMPLATE.render(
         task=state["task"],
         capability_id=cap_id,
         capability_contract=cap_contract,
+        active_skill=active_skill,
         assembled_evidence=state["assembled_evidence"],
         dropped_notice="",
         existing_data=""
