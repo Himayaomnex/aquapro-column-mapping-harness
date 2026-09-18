@@ -178,6 +178,11 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
     items: List[MappedContextItem] = []
     source_ops = set()
 
+    active_op_num = None
+    active_op_name = None
+    active_proc_segment = None
+    active_item_name = None
+
     for row in raw_rows:
         canonical_values: Dict[str, Any] = {}
         row_unmapped: List[str] = []
@@ -206,6 +211,31 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
                         proc_segment = op_num
                     op_num = extracted_op
                 break
+
+        # Check if new operation declared or inherit active operation for continuation rows
+        if op_num or op_name:
+            active_op_num = op_num or "10"
+            active_op_name = op_name or f"Operation {active_op_num}"
+            active_proc_segment = proc_segment or "1"
+            active_item_name = item_name or "Production Item"
+            op_num = active_op_num
+            op_name = active_op_name
+            proc_segment = active_proc_segment
+            item_name = active_item_name
+        else:
+            has_row_data = any([
+                canonical_values.get("product_characteristic"),
+                canonical_values.get("process_characteristic"),
+                canonical_values.get("failure_mode"),
+                canonical_values.get("failure_cause"),
+                canonical_values.get("preventive_control"),
+                canonical_values.get("detective_control"),
+            ])
+            if has_row_data and active_op_num:
+                op_num = active_op_num
+                op_name = active_op_name
+                proc_segment = active_proc_segment
+                item_name = active_item_name
 
         if not op_num and not op_name:
             continue
