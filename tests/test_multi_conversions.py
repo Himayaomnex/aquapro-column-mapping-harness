@@ -175,7 +175,23 @@ class TestMultiConversions(unittest.TestCase):
         out_file = final_state.get("exported_file_path")
         self.assertTrue(out_file and os.path.exists(out_file))
 
+    def test_08_e2e_ad_hoc_analysis_harness_run(self):
+        data_file = "data/CNC_Operation_Process_FMEA.xlsx"
+        if not os.path.exists(data_file):
+            self.skipTest("Source data file not found")
+        harness = UnifiedHarness()
+        final_state = harness.run(
+            task="Which operations have Severity >= 8 lacking error-proofing?",
+            file_path=data_file,
+            capability="ad_hoc"
+        )
+        self.assertIsNotNone(final_state)
+        self.assertEqual(final_state.get("capability_id"), "ad_hoc")
+        json_out = "output/ad_hoc_analysis.json"
+        self.assertTrue(os.path.exists(json_out))
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
