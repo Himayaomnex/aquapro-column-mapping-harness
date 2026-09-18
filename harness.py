@@ -78,14 +78,34 @@ class AgentState(TypedDict):
 # 2. Prompt Loader & Renderer
 # =====================================================================
 
-def load_text(file_path: str) -> str:
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
+def load_text(relative_path: str) -> str:
+    full_path = os.path.join(BASE_DIR, relative_path)
+    if os.path.exists(full_path):
+        with open(full_path, "r", encoding="utf-8") as f:
             return f.read()
     return ""
 
+
+def load_skills() -> str:
+    """Loads all skills from the skills/ directory at runtime."""
+    skills_dir = os.path.join(BASE_DIR, "skills")
+    if not os.path.exists(skills_dir):
+        return ""
+    skills_text = []
+    for fn in sorted(os.listdir(skills_dir)):
+        if fn.endswith(".md"):
+            p = os.path.join(skills_dir, fn)
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    skills_text.append(f"### Skill: {fn[:-3]}\n{f.read()}")
+            except Exception:
+                pass
+    return "\n\n".join(skills_text)
+
+
 HARNESS_PROMPT = load_text("prompts/00-harness.md")
 TOOL_REGISTRY = load_text("tools/registry.md")
+SKILLS_REGISTRY = load_skills()
 PLAN_TEMPLATE = jinja2.Template(load_text("prompts/10-plan.md"))
 COMPOSE_TEMPLATE = jinja2.Template(load_text("prompts/20-compose.md"))
 REPAIR_TEMPLATE = jinja2.Template(load_text("prompts/30-repair.md"))
@@ -156,6 +176,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         capability_id=cap_id,
         capability={"consumer": consumer},
         tool_registry=TOOL_REGISTRY,
+        skills=SKILLS_REGISTRY,
         plan_history=state["plan_history"],
         observations=state["observations"],
         evidence=evidence_dict,
@@ -803,8 +824,22 @@ class UnifiedHarness:
         task: Optional[str] = None,
         file_path: Optional[str] = None,
         production_item_name: Optional[str] = None,
-        output_path: str = "output/Control_Plan.xlsx"
+        output_path: Optional[str] = None,
+        capability: Optional[str] = None
     ) -> ExecutionLog:
+        if capability:
+            self.capability_id = capability
+
+        if not output_path:
+            if self.capability_id == "pfmea_aiag_to_vda":
+                output_path = "output/PFMEA_AIAG_VDA.xlsx"
+            elif self.capability_id == "dfmea_aiag_to_vda":
+                output_path = "output/DFMEA_AIAG_VDA.xlsx"
+            elif self.capability_id == "dfmea_to_pfmea":
+                output_path = "output/PFMEA_from_DFMEA.xlsx"
+            else:
+                output_path = "output/Control_Plan.xlsx"
+
         print("\n" + "=" * 85)
         print("                 AQUAPRO ROUTER-FREE AUTONOMOUS AGENT HARNESS")
         print("=" * 85)
@@ -851,7 +886,9 @@ class UnifiedHarness:
             unmapped_headers=final_state["mapped_context"].unmapped_headers if final_state.get("mapped_context") else [],
             violations=[v.model_dump() for v in final_state.get("violations", [])],
             repair_attempts=final_state.get("repair_attempts", 0),
-            output_file=os.path.abspath(output_path)
+            output_file=os.path.abspath(output_path),
+            exported_file_path=os.path.abspath(output_path),
+            built_rows=final_state.get("built_rows", [])
         )
 
     def _repair_rows(

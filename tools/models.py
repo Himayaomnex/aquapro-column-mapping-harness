@@ -136,3 +136,12 @@ class ExecutionLog(BaseModel):
     violations: List[Dict[str, Any]] = Field(default_factory=list)
     repair_attempts: int = 0
     output_file: Optional[str] = None
+    exported_file_path: Optional[str] = None
+    built_rows: List[Any] = Field(default_factory=list)
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+

@@ -143,6 +143,39 @@ class TestMultiConversions(unittest.TestCase):
         self.assertTrue(os.path.exists(exported_file))
         self.assertGreater(os.path.getsize(exported_file), 1000)
 
+    def test_06_e2e_pfmea_aiag_to_vda_harness_run(self):
+        data_file = "data/CNC_Operation_Process_FMEA.xlsx"
+        if not os.path.exists(data_file):
+            self.skipTest("Source data file not found")
+        harness = UnifiedHarness()
+        final_state = harness.run(
+            task="Convert PFMEA to AIAG-VDA format",
+            file_path=data_file,
+            capability="pfmea_aiag_to_vda"
+        )
+        self.assertIsNotNone(final_state)
+        self.assertEqual(final_state.get("capability_id"), "pfmea_aiag_to_vda")
+        self.assertGreater(len(final_state.get("built_rows", [])), 0)
+        out_file = final_state.get("exported_file_path")
+        self.assertTrue(out_file and os.path.exists(out_file))
+
+    def test_07_e2e_dfmea_to_pfmea_harness_run(self):
+        data_file = "data/CNC_Operation_Process_FMEA.xlsx"
+        if not os.path.exists(data_file):
+            self.skipTest("Source data file not found")
+        harness = UnifiedHarness()
+        final_state = harness.run(
+            task="Generate PFMEA linkage from DFMEA",
+            file_path=data_file,
+            capability="dfmea_to_pfmea"
+        )
+        self.assertIsNotNone(final_state)
+        self.assertEqual(final_state.get("capability_id"), "dfmea_to_pfmea")
+        self.assertGreater(len(final_state.get("built_rows", [])), 0)
+        out_file = final_state.get("exported_file_path")
+        self.assertTrue(out_file and os.path.exists(out_file))
+
 
 if __name__ == "__main__":
     unittest.main()
+

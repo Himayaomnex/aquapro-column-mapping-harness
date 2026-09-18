@@ -17,6 +17,9 @@
 ## Tool Registry
 {{ tool_registry }}
 
+## Available Skills
+{{ skills }}
+
 ## Plan History (Your Prior Reasoning)
 {% for turn in plan_history %}
 Turn {{ loop.index }}: {{ turn.reasoning }} -> {{ turn.action_taken }}
