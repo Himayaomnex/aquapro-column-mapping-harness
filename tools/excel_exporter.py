@@ -25,81 +25,40 @@ def _export_cd6_format(rows: List[Any], output_path: str):
     """Exports to the exact CD6 Fr Production Item Control Plan format (Header + Body + Footer)."""
     if os.path.exists(CD6_TEMPLATE):
         wb = openpyxl.load_workbook(CD6_TEMPLATE)
-        # Clear existing data rows in Body sheet while preserving header
-        ws_body = wb["Body"]
-        # Delete rows starting from row 3
-        if ws_body.max_row >= 3:
-            ws_body.delete_rows(3, ws_body.max_row - 2)
+        # Clean up microscopic columns in Footer sheet so it doesn't look squished
+        if "Footer" in wb.sheetnames:
+            ws_f = wb["Footer"]
+            for col_letter in list(ws_f.column_dimensions.keys()):
+                if len(col_letter) > 1 or col_letter > "K":
+                    del ws_f.column_dimensions[col_letter]
+
+        if "Control Plan" in wb.sheetnames:
+            wb.remove(wb["Control Plan"])
     else:
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
         ws_body = wb.create_sheet(title="Body")
+        font_data = Font(name="Calibri", size=8)
+        thin_border = Border(
+            left=Side(style="thin", color="A0A0A0"),
+            right=Side(style="thin", color="A0A0A0"),
+            top=Side(style="thin", color="A0A0A0"),
+            bottom=Side(style="thin", color="A0A0A0")
+        )
+        for idx, row_item in enumerate(rows, start=3):
+            r_dict = row_item.to_dict() if hasattr(row_item, "to_dict") else row_item
+            for c_idx, val in enumerate(r_dict.values(), start=1):
+                cell = ws_body.cell(row=idx, column=c_idx, value=val)
+                cell.font = font_data
+                cell.border = thin_border
 
-    font_data = Font(name="Calibri", size=8)
-    thin_border = Border(
-        left=Side(style="thin", color="A0A0A0"),
-        right=Side(style="thin", color="A0A0A0"),
-        top=Side(style="thin", color="A0A0A0"),
-        bottom=Side(style="thin", color="A0A0A0")
-    )
-    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
-
-    start_row = 3
-    current_row = start_row
-    op_start_rows = {}
-
-    for idx, row_item in enumerate(rows, start=1):
-        r_dict = row_item.to_dict() if hasattr(row_item, "to_dict") else row_item
-        op_num = str(r_dict.get("operation_number") or "").strip()
-        op_name = str(r_dict.get("operation_name") or "").strip()
-        seq = str(r_dict.get("process_segment_name") or "1").strip()
-
-        is_first_of_op = op_num not in op_start_rows
-        if is_first_of_op:
-            op_start_rows[op_num] = current_row
-
-        # 18 columns matching CD6 Fr Production Item Control Plan Body
-        row_vals = [
-            seq if is_first_of_op else None,                                         # Col 1: Op. Grp. Sequence
-            op_num if is_first_of_op else None,                                      # Col 2: Op#
-            op_name if is_first_of_op else None,                                     # Col 3: Process Name / Operation Description
-            r_dict.get("process_segment_name") if is_first_of_op else None,          # Col 4: Process Function
-            r_dict.get("tool_name"),                                                 # Col 5: num ,machine, device, jig, tools
-            r_dict.get("tool_number"),                                               # Col 6: No
-            r_dict.get("process_characteristic"),                                    # Col 7: Process
-            r_dict.get("product_characteristic"),                                    # Col 8: Product
-            None,                                                                    # Col 9: CCS
-            r_dict.get("special_characteristic_class"),                              # Col 10: Class
-            r_dict.get("specification_tolerance"),                                   # Col 11: Specification / Tolerance
-            r_dict.get("evaluation_measurement_technique"),                          # Col 12: Evaluation / Measurement Technique
-            r_dict.get("sample_size"),                                               # Col 13: Size
-            r_dict.get("sample_frequency"),                                          # Col 14: Frequency
-            r_dict.get("control_method"),                                            # Col 15: Control Methods
-            None,                                                                    # Col 16: Responsibility to Control
-            r_dict.get("reaction_plan"),                                             # Col 17: Reaction Plan
-            None                                                                     # Col 18: Operation Picture
-        ]
-
-        ws_body.row_dimensions[current_row].height = 24
-        for col_idx, val in enumerate(row_vals, start=1):
-            cell = ws_body.cell(row=current_row, column=col_idx, value=val)
-            cell.font = font_data
-            cell.border = thin_border
-            if col_idx in (1, 2, 6, 9, 10, 13, 14):
-                cell.alignment = align_center
-            else:
-                cell.alignment = align_left
-        current_row += 1
-
-    # Also add Control Plan alias sheet for backward compatibility with unit tests
-    if "Control Plan" not in wb.sheetnames:
-        ws_cp = wb.create_sheet(title="Control Plan")
-        for r in range(1, min(ws_body.max_row + 1, 20)):
-            for c in range(1, 19):
-                ws_cp.cell(r, c, ws_body.cell(r, c).value)
-
-    wb.save(output_path)
+    try:
+        wb.save(output_path)
+    except PermissionError:
+        base, ext = os.path.splitext(output_path)
+        alt_path = f"{base}_new{ext}"
+        print(f"[Excel Exporter Warning] '{output_path}' is open in Excel. Saved to '{alt_path}' instead.")
+        wb.save(alt_path)
     wb.close()
 
 
