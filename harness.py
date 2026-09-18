@@ -98,12 +98,18 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     Model Node: Inspects input path, capability contract, tool list, observations, and budget.
     Emits capability declaration, tool calls, or 'ready_to_compose'.
     """
-    print(f"\n--- [LangGraph: plan_node] Turn {len(state['plan_history']) + 1} ---")
-
     turn_num = len(state.get("plan_history", [])) + 1
+    print(f"\n" + "-" * 85)
+    print(f"  [LangGraph: plan_node] Turn {turn_num} of 6")
+    print("-" * 85)
+    print(f"  Task:             {state['task']}")
+    print(f"  Active Evidence:  {len(state.get('raw_rows', []))} raw rows | "
+          f"{len(state['mapped_context'].items) if state.get('mapped_context') else 0} mapped canonical items")
+    print(f"  Budget Remaining: {state['budget_tokens_remaining']} tokens | {state['budget_tool_calls_remaining']} tool calls")
+
     # Guard against excessive plan turns
     if turn_num >= 6:
-        print("[plan_node] Reached max planning turns -> emitting 'ready_to_compose'")
+        print("  [plan_node Guard] Reached max planning turns (6) -> emitting 'ready_to_compose'")
         return {
             "next_action": {
                 "action": "ready_to_compose",
@@ -114,11 +120,13 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
 
     # If evidence is already complete
     if state.get("mapped_context") and len(state["mapped_context"].items) > 0:
-        print("[plan_node] Evidence complete across operations -> emitting 'ready_to_compose'")
+        ops = state['mapped_context'].source_operations
+        print(f"  [plan_node Decision] Evidence complete across {len(ops)} operations: {ops}")
+        print(f"  [plan_node Decision] Emitting 'ready_to_compose' -> Transitioning to assemble_node")
         return {
             "next_action": {
                 "action": "ready_to_compose",
-                "reasoning": f"All {len(state['mapped_context'].source_operations)} operations mapped."
+                "reasoning": f"All {len(ops)} operations mapped."
             },
             "status": "PLANNING"
         }
@@ -246,7 +254,10 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
             tool_name = "rag_retriever"
             args = {"production_item_name": state.get("production_item_name") or _extract_item_from_task(state.get("task", ""))}
 
-    print(f"\n--- [LangGraph: execute_tool_node] Running Tool '{tool_name}' ---")
+    print(f"\n" + "-" * 85)
+    print(f"  [LangGraph: execute_tool_node] Invoking Atomic Tool: '{tool_name}'")
+    print("-" * 85)
+    print(f"  Tool Arguments:   {args}")
     observation = {"tool": tool_name, "args": args, "status": "SUCCESS", "summary": ""}
     new_raw_rows = state["raw_rows"]
     new_mapped_context = state.get("mapped_context")
@@ -256,7 +267,7 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
             fpath = args.get("file_path") or state["file_path"]
             new_raw_rows = workbook_parser(fpath)
             observation["summary"] = f"Extracted {len(new_raw_rows)} raw rows from Excel workbook."
-            print(f"[execute_tool_node] {observation['summary']}")
+            print(f"  Result Summary:   {observation['summary']}")
 
         elif tool_name == "column_mapper":
             new_mapped_context = column_mapper(state["raw_rows"])
@@ -264,7 +275,7 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
                 f"Mapped {len(new_mapped_context.items)} canonical items across "
                 f"operations {new_mapped_context.source_operations}."
             )
-            print(f"[execute_tool_node] {observation['summary']}")
+            print(f"  Result Summary:   {observation['summary']}")
 
         elif tool_name == "rag_retriever":
             item_name = args.get("production_item_name") or state["production_item_name"]
@@ -273,7 +284,7 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
                 f"Retrieved {len(new_mapped_context.items)} historical items across "
                 f"operations {new_mapped_context.source_operations} from knowledge base."
             )
-            print(f"[execute_tool_node] {observation['summary']}")
+            print(f"  Result Summary:   {observation['summary']}")
 
 
 
@@ -307,9 +318,14 @@ def assemble_node(state: AgentState) -> Dict[str, Any]:
     """
     Code Node: Selects from EvidenceStore and formats context for the composer.
     """
-    print(f"\n--- [LangGraph: assemble_node] Formatting Evidence Context ---")
+    print(f"\n" + "-" * 85)
+    print(f"  [LangGraph: assemble_node] Structuring Canonical Evidence for Composer")
+    print("-" * 85)
     ctx = state.get("mapped_context")
     assembled_lines = []
+    if ctx:
+        print(f"  Total Items:      {len(ctx.items)} canonical rows across {len(ctx.source_operations)} operations: {ctx.source_operations}")
+        print(f"  Unmapped Headers: {ctx.unmapped_headers if ctx.unmapped_headers else 'None (100% matched)'}")
 
     if ctx:
         for idx, item in enumerate(ctx.items[:100], start=1):  # Batch top evidence
@@ -330,9 +346,11 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
     """
     Model Node: Authors 16-column AIAG Control Plan rows from evidence.
     """
-    print(f"\n--- [LangGraph: compose_node] Authoring 16-Column Control Plan ---")
-
     cap_id = state.get("capability_id", "control_plan_from_pfmea")
+    print(f"\n" + "-" * 85)
+    print(f"  [LangGraph: compose_node] Authoring Document Rows under Capability: '{cap_id}'")
+    print("-" * 85)
+    print(f"  Authoring Policy: CARRY verbatim | AUTHOR AP & Special Chars | ABSTAIN blanking")
     prompt = COMPOSE_TEMPLATE.render(
         task=state["task"],
         capability_id=cap_id,
@@ -431,15 +449,19 @@ def verify_node(state: AgentState) -> Dict[str, Any]:
     """
     Code Node: Mechanically checks built rows against Rules V1-V5.
     """
-    print(f"\n--- [LangGraph: verify_node] Checking Verification Rules (V1-V5) ---")
     cap_id = state.get("capability_id", "control_plan_from_pfmea")
+    print(f"\n" + "-" * 85)
+    print(f"  [LangGraph: verify_node] Mechanical Verification (Rules V1 - V5)")
+    print("-" * 85)
+    print(f"  Target Capability:        {cap_id}")
+    print(f"  Total Document Rows:      {len(state.get('built_rows', []))}")
+
     if cap_id == "ad_hoc":
-        # Check ad_hoc output schema (V1-V4)
         violations = []
         res = state.get("adhoc_result")
         if not res or not res.get("answer"):
             violations.append(Violation(rule_id="V1", on_fail="reject_document", row_identifier="Document", statement="Ad-hoc answer empty", detail="No answer"))
-        print(f"[verify_node] Violations detected: {len(violations)}")
+        print(f"  Mechanical Verification:  {len(violations)} Violations")
         return {"violations": violations}
 
     violations = validator(
@@ -449,9 +471,18 @@ def verify_node(state: AgentState) -> Dict[str, Any]:
         capability_id=cap_id
     )
 
-    print(f"[verify_node] Violations detected: {len(violations)}")
-    for v in violations[:5]:
-        print(f"  - [{v.rule_id}] ({v.on_fail}) {v.row_identifier}: {v.statement}")
+    if len(violations) == 0:
+        print(f"  [PASS] Rule V1 (Schema Completeness): All required keys present per row")
+        print(f"  [PASS] Rule V2 (Operation Set Equality): 100% operation fidelity ({state['mapped_context'].source_operations if state.get('mapped_context') else []})")
+        print(f"  [PASS] Rule V3 (Mandatory Abstention): 0 hallucinated tooling/gage/tolerance fields")
+        print(f"  [PASS] Rule V4 (Evidence Traceability): All authored values grounded in source PFMEA")
+        print(f"  [PASS] Rule V5 (Quality Interlocks): Reaction plans matched with detective controls")
+        print(f"  Verification Result:      100% COMPLIANT (0 Violations) -> Proceeding to export_node")
+    else:
+        print(f"  Verification Result:      {len(violations)} Violations Detected:")
+        for v in violations[:5]:
+            print(f"    - [{v.rule_id}] ({v.on_fail}) {v.row_identifier}: {v.statement} ({v.detail})")
+        print(f"  Action:                   Diverting to repair_node for automated self-repair.")
 
     return {"violations": violations}
 
@@ -509,7 +540,12 @@ def export_node(state: AgentState) -> Dict[str, Any]:
     """
     Code Node: Writes verified rows into AIAG 4th Edition Excel file or delivers Q&A report.
     """
-    print(f"\n--- [LangGraph: export_node] Delivering Validated Output ---")
+    print(f"\n" + "-" * 85)
+    print(f"  [LangGraph: export_node] Delivering Validated Industry Output")
+    print("-" * 85)
+    print(f"  Destination Path:         {os.path.abspath(state['output_path'])}")
+    print(f"  Workbook Structure:       Sheet 1 ('Header' APQP Form) + Sheet 2 ('Body' 3-Row Hierarchy)")
+    print(f"  Total Validated Rows:     {len(state.get('built_rows', []))}")
     cap_id = state.get("capability_id", "control_plan_from_pfmea")
 
     # Handle ad_hoc Q&A capability (Use Case 2)
@@ -742,6 +778,20 @@ class UnifiedHarness:
         production_item_name: Optional[str] = None,
         output_path: str = "output/Control_Plan.xlsx"
     ) -> ExecutionLog:
+        print("\n" + "=" * 85)
+        print("                 AQUAPRO ROUTER-FREE AUTONOMOUS AGENT HARNESS")
+        print("=" * 85)
+        print(f"  Capability Contract: {self.capability_id}")
+        if file_path:
+            print(f"  Execution Mode:      Scenario 1 (Document Upload)")
+            print(f"  Source File:         {file_path}")
+        else:
+            print(f"  Execution Mode:      Scenario 2 (RAG Search / Analytical Q&A)")
+            print(f"  Target Task/Item:    {task or production_item_name}")
+        print(f"  Target Output Path:  {output_path}")
+        print(f"  Allocated Budget:    60,000 tokens | 8 tool calls | 6 max planning turns")
+        print("=" * 85)
+
         initial_state: AgentState = {
             "task": task or f"Execute {self.capability_id} from: {file_path or production_item_name or 'source'}",
             "file_path": file_path,
