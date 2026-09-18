@@ -252,34 +252,42 @@ def _build_pfmea_vda_rows(
         ap = calculate_action_priority(s, o, d)
 
         row = {
-            # Step 2: Structure Analysis
-            "process_item_system": item.production_item_name or "Production Item",
+            # Canonical spec keys (matching capabilities/pfmea_aiag_to_vda.md)
+            "process_item": item.production_item_name or "Production Item",
             "process_step": f"Op {item.operation_number}: {item.operation_name}",
+            "work_element_4m": draft.get("work_element") or "Machine / Operator Workstation",
+            "process_function": item.process_segment_name or "Manufacturing System Function",
+            "product_characteristic": item.product_characteristic or "Engineering Feature",
+            "process_characteristic": item.process_characteristic or "Process Parameter",
+            "failure_effect_fe": item.failure_effect or "Impact on next operation or end customer",
+            "severity_rating": s,
+            "failure_mode_fm": item.failure_mode or f"Process defect during Op {item.operation_number}",
+            "special_characteristic_class": _derive_special_characteristic(s, o) or "None",
+            "failure_cause_fc": item.failure_cause or "Process parameter deviation or tool wear",
+            "current_prevention_control": item.preventive_control or "Standard Operating Procedure (SOP)",
+            "occurrence_rating": o,
+            "current_detection_control": item.detective_control or "Visual Inspection / In-line Gage",
+            "detection_rating": d,
+            "action_priority_ap": ap,
+            "prevention_action": draft.get("optimization_prevention") or ("Implement error-proofing" if ap == "H" else "Maintain current controls"),
+            "detection_action": draft.get("optimization_detection") or ("100% automated inspection" if ap == "H" else "Standard check"),
+            "responsible_person": draft.get("responsible_person") or "Manufacturing Engineer",
+            "target_date": draft.get("target_date") or "TBD",
+            "status": "Open" if ap == "H" else "Completed",
+
+            # Legacy aliases for backward compatibility with existing tests
+            "process_item_system": item.production_item_name or "Production Item",
             "process_work_element_4m": draft.get("work_element") or "Machine / Operator Workstation",
-            
-            # Step 3: Function Analysis
             "function_of_item": item.process_segment_name or "Manufacturing System Function",
             "function_of_step": f"Execute {item.operation_name} to engineering specification",
             "function_of_work_element": item.product_characteristic or "Maintain dimensional and process tolerance",
-            
-            # Step 4: Failure Analysis
             "failure_effects_fe": item.failure_effect or "Impact on next operation or end customer",
-            "failure_mode_fm": item.failure_mode or f"Process defect during Op {item.operation_number}",
-            "failure_cause_fc": item.failure_cause or "Process parameter deviation or tool wear",
-            
-            # Step 5: Risk Analysis
-            "current_prevention_control": item.preventive_control or "Standard Operating Procedure (SOP)",
             "severity_s": s,
             "occurrence_o": o,
-            "current_detection_control": item.detective_control or "Visual Inspection / In-line Gage",
             "detection_d": d,
-            "action_priority_ap": ap,
             "special_characteristic": _derive_special_characteristic(s, o) or "None",
-            
-            # Step 6: Optimization
             "optimization_prevention": draft.get("optimization_prevention") or ("Implement error-proofing" if ap == "H" else "Maintain current controls"),
-            "optimization_detection": draft.get("optimization_detection") or ("100% automated inspection" if ap == "H" else "Standard check"),
-            "status": "Open" if ap == "H" else "Completed"
+            "optimization_detection": draft.get("optimization_detection") or ("100% automated inspection" if ap == "H" else "Standard check")
         }
         rows.append(row)
 
@@ -307,31 +315,40 @@ def _build_dfmea_vda_rows(
         ap = calculate_action_priority(s, o, d)
 
         row = {
-            # Step 2: Structure Analysis
-            "higher_level_system": item.process_segment_name or "Vehicle System / Assembly",
+            # Canonical spec keys (matching capabilities/dfmea_aiag_to_vda.md)
+            "higher_level_element": item.process_segment_name or "Vehicle System / Assembly",
             "focus_element": item.production_item_name or "Design Component",
             "lower_level_element": item.operation_name or "Component Sub-part",
-            
-            # Step 3: Function Analysis
+            "system_function": "Fulfill system-level durability and safety criteria",
+            "focus_function": item.product_characteristic or "Provide mechanical integrity and functional envelope",
+            "design_characteristic": item.process_characteristic or "Maintain material properties and structural stiffness",
+            "failure_effect_fe": item.failure_effect or "Degraded vehicle performance or loss of subsystem function",
+            "severity_rating": s,
+            "failure_mode_fm": item.failure_mode or "Structural deformation or fatigue fracture",
+            "special_characteristic_class": _derive_special_characteristic(s, o) or "None",
+            "design_cause_fc": item.failure_cause or "Stress concentration exceeding design endurance limit",
+            "current_prevention_control": item.preventive_control or "FEA Simulation / Material Selection Standards",
+            "occurrence_rating": o,
+            "current_detection_control": item.detective_control or "Prototype Durability Rig Testing",
+            "detection_rating": d,
+            "action_priority_ap": ap,
+            "recommended_design_action": "Optimize geometry / increase wall thickness" if ap == "H" else "Design verified",
+            "responsible_engineer": (draft_fields or {}).get(f"{item.operation_number}_{idx}", {}).get("responsible_engineer") or "Design Lead",
+            "target_date": (draft_fields or {}).get(f"{item.operation_number}_{idx}", {}).get("target_date") or "TBD",
+            "action_status": "In Review" if ap == "H" else "Approved",
+
+            # Legacy aliases
+            "higher_level_system": item.process_segment_name or "Vehicle System / Assembly",
             "function_system": "Fulfill system-level durability and safety criteria",
             "function_focus_element": item.product_characteristic or "Provide mechanical integrity and functional envelope",
             "function_lower_level": item.process_characteristic or "Maintain material properties and structural stiffness",
-            
-            # Step 4: Failure Analysis
-            "failure_effect_fe": item.failure_effect or "Degraded vehicle performance or loss of subsystem function",
-            "failure_mode_fm": item.failure_mode or "Structural deformation or fatigue fracture",
             "failure_cause_fc": item.failure_cause or "Stress concentration exceeding design endurance limit",
-            
-            # Step 5: Risk Analysis
             "design_prevention_control": item.preventive_control or "FEA Simulation / Material Selection Standards",
             "severity_s": s,
             "occurrence_o": o,
             "design_detection_control": item.detective_control or "Prototype Durability Rig Testing",
             "detection_d": d,
-            "action_priority_ap": ap,
             "special_characteristic": _derive_special_characteristic(s, o) or "None",
-            
-            # Step 6: Optimization
             "optimization_prevention": "Optimize geometry / increase wall thickness" if ap == "H" else "Design verified",
             "optimization_detection": "Accelerated life cycle test" if ap == "H" else "Standard bench test",
             "status": "In Review" if ap == "H" else "Approved"
@@ -356,16 +373,28 @@ def _build_dfmea_to_pfmea_rows(
         spec_class = _derive_special_characteristic(s, item.occurrence_rating)
 
         row = {
-            "source_dfmea_item": item.production_item_name,
+            # Canonical spec keys (matching capabilities/dfmea_to_pfmea.md)
+            "dfmea_part_name": item.production_item_name or "Design Component",
             "design_characteristic": item.product_characteristic or item.operation_name,
+            "dfmea_severity_rating": s,
+            "special_characteristic_class": spec_class or "Standard",
+            "dfmea_failure_effect": item.failure_effect or "Degraded subsystem performance",
+            "dfmea_design_cause": item.failure_cause or "Stress concentration exceeding fatigue threshold",
+            "pfmea_operation_number": str(item.operation_number or idx * 10),
+            "pfmea_operation_name": item.operation_name or f"Fabricate {item.production_item_name}",
+            "pfmea_process_failure_mode": f"Manufacturing variation causing: {item.failure_mode or 'out of tolerance'}",
+            "pfmea_process_failure_cause": f"Tooling wear / clamping error during Op {item.operation_number}",
+            "error_proofing_poka_yoke": "100% Poka-Yoke / Sensor Interlock" if s >= 8 else "Standard In-process Gage",
+            "recommended_process_control": "100% Poka-Yoke / Error-Proofing" if s >= 8 else "Standard In-process Gage",
+            "recommended_detection_method": item.detective_control or "Automated Vision / Air Gage",
+
+            # Legacy aliases
+            "source_dfmea_item": item.production_item_name or "Design Component",
             "dfmea_failure_mode": item.failure_mode or "Functional performance degraded",
             "dfmea_severity": s,
-            "special_characteristic_class": spec_class or "Standard",
-            # Linked PFMEA counterparts
             "linked_process_step": f"Op {item.operation_number or idx * 10}: Fabricate / Assemble {item.production_item_name}",
             "linked_process_failure_mode": f"Manufacturing variation causing: {item.failure_mode or 'out of tolerance'}",
-            "derived_process_characteristic": f"Torque / Clamping / Feed Rate for {item.product_characteristic or 'Feature'}",
-            "recommended_process_control": "100% Poka-Yoke / Error-Proofing" if s >= 8 else "Standard In-process Gage"
+            "derived_process_characteristic": f"Torque / Clamping / Feed Rate for {item.product_characteristic or 'Feature'}"
         }
         rows.append(row)
 

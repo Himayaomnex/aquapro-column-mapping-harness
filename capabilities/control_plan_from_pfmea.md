@@ -69,11 +69,10 @@ A Control Plan with invented values will fail a customer PPAP audit.
 
 ## Verification rules
 
-| # | Rule | On fail |
-|---|---|---|
-| V1 | Every row must have `operation_number` and `operation_name` populated | reject_row |
-| V2 | No fabricated values in `tool_number`, `gage_number`, `sample_size`, `sample_frequency` | reject_row |
-| V3 | Rows with `special_characteristic_class` in `[CC, SC]` must have a non-blank `control_method` | reject_row |
-| V4 | `reaction_plan` must be present whenever a detective control was mapped | reject_row |
-| V5 | Column headers must match the 16 canonical AIAG 4th Edition names in exact order | reject_document |
-| V6 | Minimum operation count: generated control plan must have >= 5 operations | reject_document |\n
+| # | Rule | On fail | Description |
+|---|---|---|---|
+| V1 | Schema Completeness | reject_row | All 16 canonical keys present per row with valid scalar types and CC/SC classification format |
+| V2 | Operation Set Equality | reject_document | 100% operation fidelity: every operation present in source PFMEA must exist in output Control Plan |
+| V3 | Mandatory Abstention | reject_row | Zero Hallucination: tooling, gage, and sample fields must remain blank on new import |
+| V4 | Evidence Traceability | reject_row | Control methods and evaluation techniques must be grounded in source PFMEA evidence |
+| V5 | Quality Interlocks | reject_row | Reaction plan permitted only when a detective control exists in source evidence |\n

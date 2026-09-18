@@ -4,7 +4,7 @@
 {{ task }}
 
 ## Capability contract
-`capabilities/{{ capability_id | default("control_plan_from_pfmea") }}.md` — output schema, abstention values, verification rules.
+{{ capability_contract }}
 
 ## Assembled evidence
 {{ assembled_evidence }}

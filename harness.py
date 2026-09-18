@@ -32,6 +32,8 @@ from tools import (
 )
 from config import get_llm, GEMINI_API_KEY
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def _extract_item_from_task(task_text: str) -> str:
     if not task_text:
         return "Production Item"
@@ -139,10 +141,20 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         "unmapped_headers": state["mapped_context"].unmapped_headers if state.get("mapped_context") else []
     }
 
+    cap_consumers = {
+        "control_plan_from_pfmea": "Quality Engineer for AIAG PPAP submission",
+        "pfmea_aiag_to_vda": "Manufacturing / Quality Team for AIAG-VDA 1st Edition Harmonization",
+        "dfmea_aiag_to_vda": "Product Design Team for AIAG-VDA Harmonization",
+        "dfmea_to_pfmea": "Cross-Functional Engineering Team for Design-to-Process Linkage",
+        "ad_hoc": "Quality & Operations Analyst"
+    }
+    cap_id = state.get("capability_id") or "control_plan_from_pfmea"
+    consumer = cap_consumers.get(cap_id, "Automotive Quality Engineer")
+
     plan_prompt = PLAN_TEMPLATE.render(
         task=state["task"],
-        capability_id=state.get("capability_id"),
-        capability={"consumer": "Quality Engineer for AIAG PPAP submission"},
+        capability_id=cap_id,
+        capability={"consumer": consumer},
         tool_registry=TOOL_REGISTRY,
         plan_history=state["plan_history"],
         observations=state["observations"],
@@ -342,18 +354,32 @@ def assemble_node(state: AgentState) -> Dict[str, Any]:
     return {"assembled_evidence": assembled_str}
 
 
+def _load_capability_contract(capability_id: str) -> str:
+    """Loads markdown capability contract to inline into model prompt."""
+    path = os.path.join(BASE_DIR, "capabilities", f"{capability_id}.md")
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            pass
+    return f"Execute quality engineering transformation under capability '{capability_id}'."
+
+
 def compose_node(state: AgentState) -> Dict[str, Any]:
     """
-    Model Node: Authors 16-column AIAG Control Plan rows from evidence.
+    Model Node: Authors document rows from canonical evidence under capability contract.
     """
     cap_id = state.get("capability_id", "control_plan_from_pfmea")
     print(f"\n" + "-" * 85)
     print(f"  [LangGraph: compose_node] Authoring Document Rows under Capability: '{cap_id}'")
     print("-" * 85)
     print(f"  Authoring Policy: CARRY verbatim | AUTHOR AP & Special Chars | ABSTAIN blanking")
+    cap_contract = _load_capability_contract(cap_id)
     prompt = COMPOSE_TEMPLATE.render(
         task=state["task"],
         capability_id=cap_id,
+        capability_contract=cap_contract,
         assembled_evidence=state["assembled_evidence"],
         dropped_notice="",
         existing_data=""
@@ -804,7 +830,6 @@ class UnifiedHarness:
             "tool_calls_used": 0,
             "raw_rows": [],
             "mapped_context": None,
-            "hierarchy_suggestion": None,
             "assembled_evidence": "",
             "draft_rows": None,
             "built_rows": [],
@@ -848,7 +873,6 @@ class UnifiedHarness:
             "tool_calls_used": 0,
             "raw_rows": [],
             "mapped_context": mapped_context,
-            "hierarchy_suggestion": None,
             "assembled_evidence": "",
             "draft_rows": None,
             "built_rows": rows,
