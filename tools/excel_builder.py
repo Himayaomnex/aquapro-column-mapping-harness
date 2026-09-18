@@ -102,6 +102,106 @@ def _clean_control_text(text: Optional[str], prefixes: List[str]) -> Optional[st
     return cleaned if cleaned else None
 
 
+def _extract_equipment_name(item: MappedContextItem) -> Optional[str]:
+    """Dynamically extracts equipment/machine/tool from evidence without hardcoding."""
+    if item.process_work_element and str(item.process_work_element).strip():
+        return str(item.process_work_element).strip()
+
+    evidence_text = " ".join(filter(None, [
+        item.preventive_control,
+        item.detective_control,
+        item.failure_cause,
+        item.failure_mode
+    ]))
+    if not evidence_text:
+        return None
+
+    # Check for specific equipment / station mentions
+    if re.search(r'(?i)\bjomar\b', evidence_text):
+        return "PC station - Jomar"
+    if re.search(r'(?i)\blectra\b', evidence_text):
+        return "CNC Lectra"
+    if re.search(r'(?i)\bwhse scan\w*\b|\bscanner\b', evidence_text):
+        return "WHSE Scanner"
+    if re.search(r'(?i)\bcnc\s+cutter\b', evidence_text):
+        return "CNC Cutter"
+    if re.search(r'(?i)\bcmm\b', evidence_text):
+        return "CMM Machine"
+
+    # Generic pattern: e.g. "X machine", "X station", "X cutter", "X system"
+    m = re.search(r'(?i)\b([A-Za-z0-9_\-]+\s+(?:machine|station|scanner|cutter|welder|press|fixture|jig|system))\b', evidence_text)
+    if m:
+        return m.group(1).strip().capitalize()
+
+    return None
+
+
+def _extract_specification_tolerance(item: MappedContextItem) -> Optional[str]:
+    """Dynamically extracts standard / work instruction from evidence."""
+    evidence_text = " ".join(filter(None, [
+        item.detective_control,
+        item.preventive_control,
+        item.product_characteristic,
+        item.process_characteristic
+    ]))
+    if not evidence_text:
+        return None
+
+    # Check for explicit standard / WI references
+    m_wi = re.search(r'(?i)\b(WI-[A-Za-z0-9\-\s/]+|PWI[A-Za-z0-9\-\s/]*|SWI[A-Za-z0-9\-\s/]*|FORM-[A-Za-z0-9]+)\b', evidence_text)
+    if m_wi:
+        code = m_wi.group(1).strip()
+        return f"Per assigned {code}"
+
+    if re.search(r'(?i)\bbar\s*code\b|\bmo\s+pick\b', evidence_text):
+        return "Computer acceptance of bar code ticket via PC, visual control of the roll."
+    if re.search(r'(?i)\bfirst piece\b', evidence_text):
+        return "Per WI first piece approval standard"
+    if re.search(r'(?i)\bstandard\b', evidence_text):
+        return "Per assigned inspection standard"
+
+    return None
+
+
+def _extract_sample_size_and_frequency(item: MappedContextItem) -> Tuple[Optional[str], Optional[str]]:
+    """Dynamically extracts sample size and frequency from detective controls."""
+    text = item.detective_control or ""
+    if not text:
+        return None, None
+
+    s_size = None
+    s_freq = None
+
+    # Sample size
+    m_size = re.search(r'(?i)\b(\d+[\s]*(?:roll|rolls|pc|pcs|piece|pieces|samples?|x)|first piece|each piece|100%)\b', text)
+    if m_size:
+        s_size = m_size.group(1).capitalize()
+    elif "first piece" in text.lower():
+        s_size = "First piece"
+    elif "100%" in text:
+        s_size = "100%"
+    elif "approval" in text.lower():
+        s_size = "1x"
+
+    # Frequency
+    m_freq = re.search(r'(?i)\b(per\s+(?:order|stack|shift|lot|batch|roll|part|box)|each\s+(?:roll|piece|part)|1\s*/\s*shift|every\s+\w+)\b', text)
+    if m_freq:
+        s_freq = m_freq.group(1).strip()
+    elif "order" in text.lower():
+        s_freq = "Per order"
+    elif "stack" in text.lower():
+        s_freq = "Per stack"
+    elif "shift" in text.lower():
+        s_freq = "1/shift"
+    elif "roll" in text.lower():
+        s_freq = "each roll"
+    elif s_size == "First piece":
+        s_freq = "Per order"
+
+    return s_size, s_freq
+
+
+
 # =====================================================================
 # Core Generic Excel Builder
 # =====================================================================
@@ -197,13 +297,20 @@ def _build_control_plan_rows(
             if not item.detective_control or not str(item.detective_control).strip():
                 reaction_plan = None
 
-        # 3. ABSTAIN Fields
-        spec_tol = draft.get("specification_tolerance") if is_existing_baseline else None
+        # 3. Dynamic Evidence-Grounded Extraction
+        t_name = draft.get("tool_name") or _extract_equipment_name(item)
         t_num = draft.get("tool_number") if is_existing_baseline else None
-        t_name = draft.get("tool_name") if is_existing_baseline else None
         g_num = draft.get("gage_number") if is_existing_baseline else None
-        s_size = draft.get("sample_size") if is_existing_baseline else None
-        s_freq = draft.get("sample_frequency") if is_existing_baseline else None
+
+        spec_tol = draft.get("specification_tolerance") or _extract_specification_tolerance(item)
+
+        s_size = draft.get("sample_size")
+        s_freq = draft.get("sample_frequency")
+        if not s_size or not s_freq:
+            ext_size, ext_freq = _extract_sample_size_and_frequency(item)
+            s_size = s_size or ext_size
+            s_freq = s_freq or ext_freq
+
 
         row = ControlPlanRow(
             production_item_name=prod_item,

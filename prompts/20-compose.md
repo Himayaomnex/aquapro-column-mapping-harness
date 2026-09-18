@@ -46,15 +46,25 @@ One object per evidence item.
 
 ---
 
-### FIXED NULL — always null, no exceptions
+### EVIDENCE-GROUNDED EXTRACTION — extract from source text; write null only if absent
 
-`specification_tolerance`, `tool_number`, `tool_name`, `gage_number`,
-`sample_size`, `sample_frequency`
+**`tool_name`**
+- Extract machine, equipment, station, cutter, scanner, or tool mentioned in this row's controls or process description (e.g., "PC station - Jomar", "CNC Lectra", "WHSE Scanner", "CNC Cutter").
+- If no equipment is mentioned: write `null`.
 
-Write these as JSON `null`. Not the string "null". Not "N/A". Not "TBD".
-Rule V3 rejects any non-null value here regardless of content.
+**`tool_number`**, **`gage_number`**
+- If an explicit tool ID or gage ID appears in the evidence, write it. Otherwise write `null`.
+
+**`specification_tolerance`**
+- Extract inspection standards, procedure codes, or work instruction references mentioned in controls (e.g., "Per assigned WI-00060 CZ / WI-12032 MX", "Per assigned PWI", "Computer acceptance of bar code ticket via PC").
+- If none mentioned: write `null`.
+
+**`sample_size`** & **`sample_frequency`**
+- Extract inspection sampling rates mentioned in detective controls (e.g., size: "First piece", "1x", "1 roll", "100%"; frequency: "Per order", "Per stack", "each roll", "1/shift").
+- If none mentioned: write `null`.
 
 ---
+
 
 ### AUTHOR — derive only from this row's evidence, never from domain knowledge
 

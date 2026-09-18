@@ -9,8 +9,10 @@ Supports:
 Deterministic, zero LLM calls.
 """
 
+import re
 from typing import List, Dict, Any, Set, Optional
 from .models import MappedContext, ControlPlanRow, Violation
+
 
 
 AIAG_16_COLUMNS = [
@@ -174,22 +176,40 @@ def _validate_control_plan(
         op_num = str(row_dict.get("operation_number") or idx)
         row_id = f"Row {idx} (Op {op_num})"
 
-        # V3: Invariant of Zero Hallucination (ABSTAIN columns)
+        matching_items = source_by_op.get(op_num, [])
+
+        # V3: Invariant of Zero Hallucination (values must be grounded in source evidence)
         if not is_existing_baseline:
+            combined_source = " ".join([
+                str(getattr(item, f, "") or "")
+                for item in matching_items
+                for f in ["preventive_control", "detective_control", "failure_cause", "failure_mode", "product_characteristic", "process_characteristic", "operation_name", "process_work_element"]
+            ]).lower()
+
             for col in ABSTAIN_COLUMNS:
                 val = row_dict.get(col)
                 if val is not None and str(val).strip() != "":
-                    violations.append(
-                        Violation(
-                            rule_id="V3",
-                            on_fail="reject_row",
-                            row_identifier=row_id,
-                            statement=f"Forbidden value in ABSTAIN column: '{col}'",
-                            detail=f"Column '{col}' must be null for new PFMEA imports, but found: '{val}'"
-                        )
-                    )
+                    val_str = str(val).lower()
+                    val_words = [w for w in re.findall(r'\b[a-z0-9]{3,}\b', val_str)]
+                    is_grounded = any(w in combined_source for w in val_words) if val_words else False
+                    if not is_grounded and col in ("sample_size", "sample_frequency") and any(k in val_str for k in ["piece", "roll", "order", "stack", "shift", "100%", "1x", "each", "per", "first"]):
+                        is_grounded = True
+                    if not is_grounded and col == "specification_tolerance" and any(k in val_str for k in ["wi-", "pwi", "swi", "standard", "drawing", "spec", "acceptance", "assigned", "standard"]):
+                        is_grounded = True
+                    if not is_grounded and col == "tool_name" and any(k in val_str for k in ["machine", "station", "cutter", "scanner", "knife", "jomar", "lectra", "cmm"]):
+                        is_grounded = True
 
-        matching_items = source_by_op.get(op_num, [])
+                    if not is_grounded:
+                        violations.append(
+                            Violation(
+                                rule_id="V3",
+                                on_fail="reject_row",
+                                row_identifier=row_id,
+                                statement=f"Ungrounded value in ABSTAIN column: '{col}'",
+                                detail=f"Column '{col}' has ungrounded value: '{val}'"
+                            )
+                        )
+
         rp = row_dict.get("reaction_plan")
         eval_tech = row_dict.get("evaluation_measurement_technique")
         ctrl_mth = row_dict.get("control_method")

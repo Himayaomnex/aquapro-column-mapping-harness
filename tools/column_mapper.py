@@ -81,10 +81,17 @@ SYNONYM_MAP: Dict[str, List[str]] = {
         "det (d) of fc/ fm", "det (d)"
     ],
     # DFMEA & AIAG-VDA 7-Step specific concepts
+    "process_work_element": [
+        "3. process work element", "process work element", "work element",
+        "work element 4m", "4m", "num ,machine, device, jig, tools, for manufacturing",
+        "machine, device, jig, tools", "machine", "device", "jig", "tools",
+        "machine / device", "tools for manufacturing"
+    ],
     "focus_element": [
         "focus element", "item / function", "system / subsystem / component",
-        "system element", "process item", "component / part", "3. process work element"
+        "system element", "process item", "component / part"
     ],
+
     "function_name": [
         "function of item", "function", "item function", "process function",
         "function of process item", "function of focus element"
@@ -276,6 +283,7 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
             operation_name=op_name,
             production_item_name=item_name,
             process_segment_name=proc_segment,
+            process_work_element=str(canonical_values.get("process_work_element")).strip() if canonical_values.get("process_work_element") else None,
             product_characteristic=str(canonical_values.get("product_characteristic")).strip() if canonical_values.get("product_characteristic") else None,
             process_characteristic=str(canonical_values.get("process_characteristic")).strip() if canonical_values.get("process_characteristic") else None,
             failure_mode=str(canonical_values.get("failure_mode")).strip() if canonical_values.get("failure_mode") else None,

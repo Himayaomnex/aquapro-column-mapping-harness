@@ -18,10 +18,12 @@ class MappedContextItem(BaseModel):
 
     # Hierarchy (CARRY fields for document spine)
     process_segment_name: Optional[str] = None
+    process_work_element: Optional[str] = None
 
     # Characteristics (CARRY fields)
     product_characteristic: Optional[str] = None
     process_characteristic: Optional[str] = None
+
 
     # PFMEA analysis (AUTHOR source fields)
     failure_mode: Optional[str] = None
