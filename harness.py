@@ -468,8 +468,44 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
     if cap_id == "ad_hoc":
         # Extract ad-hoc analytical Q&A
         adhoc_res = None
+        task_str = state.get("task", "")
         if GEMINI_API_KEY:
             try:
+                llm = get_llm()
+                evidence_summary = "\n".join([
+                    f"- Op {it.operation_number} ({it.operation_name}) | Mode: '{it.failure_mode}' | Cause: '{it.failure_cause}' | S={it.severity_rating}, O={it.occurrence_rating}, D={it.detection_rating} | Prev: '{it.preventive_control}' | Det: '{it.detective_control}'"
+                    for it in (state.get("mapped_context").items if state.get("mapped_context") else [])[:150]
+                ])
+                adhoc_prompt = f"""You are a certified automotive quality and APQP audit expert.
+Analyze the following FMEA evidence to answer the user's specific analytical question.
+
+User Question / Task:
+"{task_str}"
+
+Evidence:
+{evidence_summary}
+
+Return a single JSON object strictly matching this schema:
+{{
+  "question": "{task_str}",
+  "answer": "Direct, precise answer addressing the user's specific question with exact numbers and names.",
+  "claims": [
+    {{
+      "claim": "Specific factual claim derived directly from the evidence",
+      "evidence_ids": ["Op <number>"]
+    }}
+  ],
+  "operations_analyzed": {list(state['mapped_context'].source_operations if state.get('mapped_context') else [])},
+  "uncertainty": null
+}}
+"""
+                resp = llm.invoke(adhoc_prompt)
+                resp_text = resp.content
+                if isinstance(resp_text, list):
+                    resp_text = "\n".join([b.get("text", "") if isinstance(b, dict) else str(b) for b in resp_text])
+                else:
+                    resp_text = str(resp_text)
+
                 code_b = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', resp_text, re.DOTALL)
                 j_str = code_b.group(1) if code_b else None
                 if not j_str:
@@ -477,13 +513,77 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
                     j_str = j_m.group(0) if j_m else None
                 if j_str:
                     adhoc_res = json.loads(j_str)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[compose_node Info] LLM ad_hoc analysis fallback: {e}")
+
         if not adhoc_res:
-            # Deterministic analysis from mapped evidence
-            ops_high_sev = []
-            if state.get("mapped_context"):
-                for itm in state["mapped_context"].items:
+            # Deterministic query-tailored analysis from mapped evidence
+            ctx_items = state["mapped_context"].items if state.get("mapped_context") else []
+            t_lower = task_str.lower()
+
+            # Query A: Top failure modes / highest severity / highest risk
+            if any(k in t_lower for k in ["top", "highest severity", "highest risk", "most severe", "severity"]):
+                ranked = sorted(
+                    [it for it in ctx_items if it.severity_rating is not None and it.failure_mode],
+                    key=lambda x: x.severity_rating or 0,
+                    reverse=True
+                )
+                seen_modes = set()
+                top_items = []
+                for it in ranked:
+                    k = (it.operation_number, it.failure_mode)
+                    if k not in seen_modes:
+                        seen_modes.add(k)
+                        top_items.append(it)
+                    if len(top_items) == 5:
+                        break
+
+                claims = [
+                    {
+                        "claim": f"Rank {idx}: Op {it.operation_number} ({it.operation_name}) has Severity {it.severity_rating} for failure mode '{it.failure_mode}' (Cause: '{it.failure_cause or 'Unspecified'}').",
+                        "evidence_ids": [f"Op {it.operation_number}"]
+                    }
+                    for idx, it in enumerate(top_items, 1)
+                ]
+                ans_summary = "; ".join([f"#{idx}: Op {it.operation_number} '{it.failure_mode}' (Sev {it.severity_rating})" for idx, it in enumerate(top_items, 1)])
+                adhoc_res = {
+                    "question": task_str,
+                    "answer": f"The top {len(top_items)} failure modes with the highest severity are: {ans_summary}.",
+                    "claims": claims,
+                    "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
+                    "uncertainty": None if top_items else "No failure modes with numeric severity ratings found in source."
+                }
+
+            # Query B: Visual inspection / manual check
+            elif any(k in t_lower for k in ["visual", "manual", "inspection", "verificación", "vista"]):
+                vis_items = []
+                seen_ops = set()
+                for it in ctx_items:
+                    det = (it.detective_control or "").lower()
+                    if any(w in det for w in ["visual", "vista", "verificaci", "inspecci", "manual"]):
+                        if it.operation_number not in seen_ops:
+                            seen_ops.add(it.operation_number)
+                            vis_items.append(it)
+                claims = [
+                    {
+                        "claim": f"Operation {it.operation_number} ({it.operation_name}) uses visual inspection: '{it.detective_control}'.",
+                        "evidence_ids": [f"Op {it.operation_number}"]
+                    }
+                    for it in vis_items
+                ]
+                ops_list = [it.operation_number for it in vis_items]
+                adhoc_res = {
+                    "question": task_str,
+                    "answer": f"Identified {len(vis_items)} operations relying on visual or manual verification controls: Operations {ops_list}.",
+                    "claims": claims,
+                    "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
+                    "uncertainty": None if vis_items else "No operations with explicit visual inspection descriptions found."
+                }
+
+            # Query C: Error-proofing / poka-yoke / severity >= 8
+            else:
+                ops_high_sev = []
+                for itm in ctx_items:
                     sev = itm.severity_rating or 0
                     prev = (itm.preventive_control or "").lower()
                     has_poka = "poka" in prev or "error" in prev or "interlock" in prev or "automatic" in prev or "sensor" in prev
@@ -495,20 +595,21 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
                             "cause": itm.failure_cause,
                             "current_control": itm.preventive_control or "None"
                         })
-            adhoc_res = {
-                "question": state["task"],
-                "answer": f"Identified {len(ops_high_sev)} operations with Severity >= 8 lacking automated error-proofing.",
-                "claims": [
-                    {
-                        "claim": f"Operation {o['operation']} ({o['operation_name']}) has Severity {o['severity']} for cause '{o['cause']}' with manual control '{o['current_control']}'.",
-                        "evidence_ids": [f"Op {o['operation']}"]
-                    }
-                    for o in ops_high_sev[:8]
-                ],
-                "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
-                "uncertainty": None if ops_high_sev else "No high-severity operations lacking error proofing found in retrieved dataset."
-            }
-        print(f"[compose_node] Formulated analytical response for ad_hoc Q&A.")
+                adhoc_res = {
+                    "question": task_str,
+                    "answer": f"Identified {len(ops_high_sev)} operations with Severity >= 8 lacking automated error-proofing.",
+                    "claims": [
+                        {
+                            "claim": f"Operation {o['operation']} ({o['operation_name']}) has Severity {o['severity']} for cause '{o['cause']}' with manual control '{o['current_control']}'.",
+                            "evidence_ids": [f"Op {o['operation']}"]
+                        }
+                        for o in ops_high_sev[:8]
+                    ],
+                    "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
+                    "uncertainty": None if ops_high_sev else "No high-severity operations lacking error proofing found in retrieved dataset."
+                }
+
+        print(f"[compose_node] Formulated analytical response for ad_hoc Q&A: {adhoc_res.get('answer', '')[:100]}...")
         return {"built_rows": [], "adhoc_result": adhoc_res}
 
     built_rows = excel_builder(

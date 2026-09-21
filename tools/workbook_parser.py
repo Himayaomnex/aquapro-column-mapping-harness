@@ -161,9 +161,11 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
         for h, val in zip(headers, row_vals):
             if val is not None and str(val).strip() != "":
                 has_content = True
-                row_dict[h] = val
+                if h not in row_dict or row_dict[h] is None or str(row_dict[h]).strip() == "":
+                    row_dict[h] = val
             else:
-                row_dict[h] = None
+                if h not in row_dict:
+                    row_dict[h] = None
 
         if has_content:
             row_dict["_source_sheet"] = sheet_name
