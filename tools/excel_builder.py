@@ -326,6 +326,9 @@ def _build_control_plan_rows(
             sample_size=s_size,
             sample_frequency=s_freq,
             reaction_plan=reaction_plan,
+            characteristic_id=item.characteristic_id,
+            csr=item.csr,
+            responsibility=item.responsibility,
         )
         rows.append(row)
 

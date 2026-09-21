@@ -22,8 +22,21 @@ SYNONYM_MAP: Dict[str, List[str]] = {
     ],
     "operation_number": [
         "operation number", "op number", "op no", "op #", "operation #",
-        "op num", "operation no", "process step / op #", "op. grp. sequence",
-        "column_1", "seq", "step #"
+        "op num", "operation no", "process step / op #",
+        "column_1", "step #"
+    ],
+    "op_grp_sequence": [
+        "op. grp. sequence", "op grp sequence", "operation group sequence", "op group sequence"
+    ],
+    "characteristic_id": [
+        "characteristic id", "characteristic no", "characteristic number",
+        "char id", "char no", "char #", "characteristic_id"
+    ],
+    "csr": [
+        "csr", "ccs", "customer specific requirement", "customer specific requirements"
+    ],
+    "responsibility": [
+        "responsibility", "responsibility to control", "resp"
     ],
     "operation_name": [
         "operation name", "operation description", "process description",
@@ -294,7 +307,10 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
             preventive_control=str(canonical_values.get("preventive_control")).strip() if canonical_values.get("preventive_control") else None,
             detective_control=str(canonical_values.get("detective_control")).strip() if canonical_values.get("detective_control") else None,
             detection_rating=_parse_int(canonical_values.get("detection_rating")),
-            source_sheet=str(row.get("_source_sheet", "Body")),
+            characteristic_id=str(canonical_values.get("characteristic_id")).strip() if canonical_values.get("characteristic_id") else None,
+            csr=str(canonical_values.get("csr")).strip() if canonical_values.get("csr") else None,
+            responsibility=str(canonical_values.get("responsibility")).strip() if canonical_values.get("responsibility") else None,
+            source_sheet=str(row.get("_source_sheet") or "Body"),
             source_row=int(row.get("_source_row", 0)),
             source_type="file",
             unmapped_fields=row_unmapped,

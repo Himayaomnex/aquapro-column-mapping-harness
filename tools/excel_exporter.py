@@ -21,6 +21,157 @@ CD6_TEMPLATE = os.path.join(DATA_DIR, "CD6_Fr_Production_Item_Control_Plan.xlsx"
 CNC_TEMPLATE = os.path.join(DATA_DIR, "CNC_Operation_Control_Plan_Benchmark.xlsx")
 
 
+def _setup_cd6_headers(ws: openpyxl.worksheet.worksheet.Worksheet):
+    """Sets up the authentic 18-column 2-row CD6 Control Plan Header if template not present."""
+    body_widths = {
+        "A": 4.0, "B": 5.0, "C": 24.0, "D": 14.0, "E": 12.0, "F": 12.0,
+        "G": 14.0, "H": 18.0, "I": 6.0, "J": 8.0, "K": 34.0, "L": 20.0,
+        "M": 10.0, "N": 20.0, "O": 16.0, "P": 12.0, "Q": 24.0, "R": 12.0
+    }
+    for col_l, w in body_widths.items():
+        ws.column_dimensions[col_l].width = w
+
+    fill_header = PatternFill(start_color="FFD3D3D3", end_color="FFD3D3D3", fill_type="solid")
+    font_header = Font(name="Calibri", size=8, bold=True)
+    thin_border = Border(
+        left=Side(style="thin", color="FF808080"),
+        right=Side(style="thin", color="FF808080"),
+        top=Side(style="thin", color="FF808080"),
+        bottom=Side(style="thin", color="FF808080")
+    )
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for r in (1, 2):
+        for c in range(1, 19):
+            cell = ws.cell(r, c)
+            cell.fill = fill_header
+            cell.font = font_header
+            cell.border = thin_border
+            cell.alignment = align_center
+
+    ws["A1"] = "Op. Grp. Sequence"
+    ws["B1"] = "Op#"
+    ws["C1"] = "Process Name / Operation Description"
+    ws["D1"] = "Characteristics"
+    ws["I1"] = "CCS"
+    ws["J1"] = "Class"
+    ws["K1"] = "Characteristics"
+    ws["L1"] = "Sample"
+
+    ws["D2"] = "Process Function"
+    ws["E2"] = "num ,machine, device, jig, tools, for manufacturing"
+    ws["F2"] = "No"
+    ws["G2"] = "Process"
+    ws["H2"] = "Product"
+    ws["K2"] = "Product/Process Specification/ Tolerance"
+    ws["L2"] = "Evaluation/ Measurement Technique"
+    ws["M2"] = "Size"
+    ws["N2"] = "Frequency"
+    ws["O2"] = "Control Methods"
+    ws["P2"] = "Responsibility to Control"
+    ws["Q2"] = "Reaction Plan"
+    ws["R2"] = "Operation Picture"
+
+    merges = ["A1:A2", "B1:B2", "C1:C2", "D1:H1", "I1:I2", "J1:J2", "K1:K2", "L1:R1"]
+    for m in merges:
+        ws.merge_cells(m)
+
+
+def _build_cd6_body(ws_b: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any]):
+    """Populates validated rows into CD6 18-column alternating specification & control sub-rows."""
+    # Clean any previous merges in data rows
+    for m in list(ws_b.merged_cells.ranges):
+        if m.min_row > 2:
+            ws_b.merged_cells.remove(m)
+    if ws_b.max_row > 2:
+        ws_b.delete_rows(3, ws_b.max_row - 2)
+
+    font_data = Font(name="Calibri", size=8)
+    thin_border = Border(
+        left=Side(style="thin", color="FF808080"),
+        right=Side(style="thin", color="FF808080"),
+        top=Side(style="thin", color="FF808080"),
+        bottom=Side(style="thin", color="FF808080")
+    )
+    align_center = Alignment(horizontal="center", vertical="top", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+    current_row = 3
+    op_start_rows = set()
+
+    for idx, row_item in enumerate(rows, start=1):
+        r_dict = row_item.to_dict() if hasattr(row_item, "to_dict") else row_item
+        op_num = str(r_dict.get("operation_number") or "").strip()
+        op_name = str(r_dict.get("operation_name") or "").strip()
+        seq = str(r_dict.get("process_segment_name") or "1").strip()
+        is_first = op_num not in op_start_rows
+        if is_first:
+            op_start_rows.add(op_num)
+
+        char_no = (
+            r_dict.get("characteristic_id") or
+            r_dict.get("tool_number") or
+            r_dict.get("gage_number") or
+            f"A_{op_num}_{idx}"
+        )
+        proc_func = r_dict.get("process_segment_name") or op_name
+        tool = r_dict.get("tool_name") or r_dict.get("tool_number")
+        proc_char = r_dict.get("process_characteristic")
+        prod_char = r_dict.get("product_characteristic")
+        ccs = r_dict.get("csr") or r_dict.get("ccs")
+        char_class = r_dict.get("special_characteristic_class")
+        spec_tol = r_dict.get("specification_tolerance")
+
+        eval_tech = r_dict.get("evaluation_measurement_technique")
+        sample_size = r_dict.get("sample_size")
+        sample_freq = r_dict.get("sample_frequency")
+        ctrl_method = r_dict.get("control_method")
+        resp = r_dict.get("responsibility")
+        reaction_plan = r_dict.get("reaction_plan")
+
+        row_a = [
+            seq if is_first else None,
+            op_num if is_first else None,
+            op_name if is_first else None,
+            proc_func if is_first else None,
+            tool,
+            char_no,
+            proc_char,
+            prod_char,
+            ccs,
+            char_class,
+            spec_tol,
+            None, None, None, None, None, None, None
+        ]
+
+        row_b = [
+            None, None, None, None, None, None, None, None, None, None, None,
+            eval_tech,
+            sample_size,
+            sample_freq,
+            ctrl_method,
+            resp,
+            reaction_plan,
+            None
+        ]
+
+        ws_b.row_dimensions[current_row].height = 24
+        for c_idx, val in enumerate(row_a, start=1):
+            cell = ws_b.cell(row=current_row, column=c_idx, value=val)
+            cell.font = font_data
+            cell.border = thin_border
+            cell.alignment = align_center if c_idx in (1, 2, 6, 9, 10) else align_left
+        current_row += 1
+
+        ws_b.row_dimensions[current_row].height = 24
+        for c_idx, val in enumerate(row_b, start=1):
+            cell = ws_b.cell(row=current_row, column=c_idx, value=val)
+            cell.font = font_data
+            cell.border = thin_border
+            cell.alignment = align_center if c_idx in (13, 14) else align_left
+        current_row += 1
+
+
 def _export_cd6_format(rows: List[Any], output_path: str):
     """Exports to the exact CD6 Fr Production Item Control Plan format (Header + Body + Footer)."""
     if os.path.exists(CD6_TEMPLATE):
@@ -34,23 +185,15 @@ def _export_cd6_format(rows: List[Any], output_path: str):
 
         if "Control Plan" in wb.sheetnames:
             wb.remove(wb["Control Plan"])
+
+        ws_b = wb["Body"]
+        _build_cd6_body(ws_b, rows)
     else:
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
-        ws_body = wb.create_sheet(title="Body")
-        font_data = Font(name="Calibri", size=8)
-        thin_border = Border(
-            left=Side(style="thin", color="A0A0A0"),
-            right=Side(style="thin", color="A0A0A0"),
-            top=Side(style="thin", color="A0A0A0"),
-            bottom=Side(style="thin", color="A0A0A0")
-        )
-        for idx, row_item in enumerate(rows, start=3):
-            r_dict = row_item.to_dict() if hasattr(row_item, "to_dict") else row_item
-            for c_idx, val in enumerate(r_dict.values(), start=1):
-                cell = ws_body.cell(row=idx, column=c_idx, value=val)
-                cell.font = font_data
-                cell.border = thin_border
+        ws_b = wb.create_sheet(title="Body")
+        _setup_cd6_headers(ws_b)
+        _build_cd6_body(ws_b, rows)
 
     try:
         wb.save(output_path)
@@ -71,13 +214,9 @@ def _export_cnc_format(rows: List[Any], output_path: str, part_name: str = "CNC 
     ws_h = wb.create_sheet(title="Header")
     _build_cnc_header(ws_h, part_name=part_name)
 
-    # 2. Body Sheet
+    # 2. Body Sheet (Single authoritative 16-column body sheet)
     ws_b = wb.create_sheet(title="Body")
     _build_cnc_body(ws_b, rows)
-
-    # 3. Control Plan Sheet (Alias for backward compatibility)
-    ws_cp = wb.create_sheet(title="Control Plan")
-    _build_cnc_body(ws_cp, rows)
 
     wb.save(output_path)
     wb.close()

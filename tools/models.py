@@ -23,6 +23,9 @@ class MappedContextItem(BaseModel):
     # Characteristics (CARRY fields)
     product_characteristic: Optional[str] = None
     process_characteristic: Optional[str] = None
+    characteristic_id: Optional[str] = None
+    csr: Optional[str] = None
+    responsibility: Optional[str] = None
 
 
     # PFMEA analysis (AUTHOR source fields)
@@ -91,9 +94,14 @@ class ControlPlanRow(BaseModel):
     # 16. Reaction Plan (AUTHOR)
     reaction_plan: Optional[str] = None
 
+    # OEM & Template Extensions (CARRY / AUTHOR)
+    characteristic_id: Optional[str] = None
+    csr: Optional[str] = None
+    responsibility: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dict with exact 16 AIAG keys."""
-        return {
+        """Convert to dict with exact 16 AIAG keys plus optional OEM extensions."""
+        d = {
             "production_item_name": self.production_item_name,
             "process_segment_name": self.process_segment_name,
             "operation_number": self.operation_number,
@@ -111,6 +119,13 @@ class ControlPlanRow(BaseModel):
             "sample_frequency": self.sample_frequency,
             "reaction_plan": self.reaction_plan,
         }
+        if self.characteristic_id is not None:
+            d["characteristic_id"] = self.characteristic_id
+        if self.csr is not None:
+            d["csr"] = self.csr
+        if self.responsibility is not None:
+            d["responsibility"] = self.responsibility
+        return d
 
 
 class Violation(BaseModel):

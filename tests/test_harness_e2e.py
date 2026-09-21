@@ -113,7 +113,7 @@ class TestUnifiedHarnessE2E(unittest.TestCase):
 
         # Check the generated Excel file
         wb = openpyxl.load_workbook(self.output_path)
-        ws = wb["Control Plan"]
+        ws = wb["Body"] if "Body" in wb.sheetnames else wb["Control Plan"]
         # Row 3 is header (16 columns)
         self.assertEqual(ws.max_column, 16)
         # Rows 4, 5, 6 are data rows
