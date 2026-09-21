@@ -800,8 +800,8 @@ def export_node(state: AgentState) -> Dict[str, Any]:
         print(f"===================================================================================")
 
         # Save JSON output
-        out_json = "output/ad_hoc_analysis.json"
-        os.makedirs("output", exist_ok=True)
+        out_json = state.get("output_path") if state.get("output_path") and state["output_path"].endswith(".json") else "output/ad_hoc_analysis.json"
+        os.makedirs(os.path.dirname(out_json) or ".", exist_ok=True)
         with open(out_json, "w", encoding="utf-8") as jf:
             json.dump(adhoc, jf, indent=2)
 
