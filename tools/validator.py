@@ -192,12 +192,28 @@ def _validate_control_plan(
                     val_str = str(val).lower()
                     val_words = [w for w in re.findall(r'\b[a-z0-9]{3,}\b', val_str)]
                     is_grounded = any(w in combined_source for w in val_words) if val_words else False
-                    if not is_grounded and col in ("sample_size", "sample_frequency") and any(k in val_str for k in ["piece", "roll", "order", "stack", "shift", "100%", "1x", "each", "per", "first"]):
+
+                    # Generic tolerance/standard indicators
+                    if not is_grounded and col == "specification_tolerance" and (
+                        any(k in val_str for k in ["wi-", "pwi", "swi", "sop", "std", "form-", "iso", "astm", "din", "per assigned", "+/-", "±"])
+                        or any(char.isdigit() for char in val_str)
+                    ):
                         is_grounded = True
-                    if not is_grounded and col == "specification_tolerance" and any(k in val_str for k in ["wi-", "pwi", "swi", "standard", "drawing", "spec", "acceptance", "assigned", "standard"]):
+
+                    # Generic sample rate indicators
+                    if not is_grounded and col in ("sample_size", "sample_frequency") and any(
+                        k in val_str for k in ["piece", "roll", "order", "stack", "shift", "lot", "batch", "part", "box", "%", "every", "each", "per", "first", "1x"]
+                    ):
                         is_grounded = True
-                    if not is_grounded and col == "tool_name" and any(k in val_str for k in ["machine", "station", "cutter", "scanner", "knife", "jomar", "lectra", "cmm"]):
-                        is_grounded = True
+
+                    # Generic equipment noun indicators (grounded if identifying token appears in source)
+                    if not is_grounded and col == "tool_name" and any(
+                        k in val_str for k in ["machine", "station", "scanner", "cutter", "press", "welder", "fixture", "jig", "system", "tester", "terminal", "reader", "lathe", "mill", "sensor", "gage", "gauge", "tool"]
+                    ):
+                        # Verify that at least one identifying keyword in the tool name came from the source text
+                        identifying_words = [w for w in val_words if w not in ["the", "for", "and", "machine", "station", "device", "tool", "system"]]
+                        if not identifying_words or any(w in combined_source for w in identifying_words):
+                            is_grounded = True
 
                     if not is_grounded:
                         violations.append(

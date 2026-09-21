@@ -103,7 +103,7 @@ def _clean_control_text(text: Optional[str], prefixes: List[str]) -> Optional[st
 
 
 def _extract_equipment_name(item: MappedContextItem) -> Optional[str]:
-    """Dynamically extracts equipment/machine/tool from evidence without hardcoding."""
+    """Dynamically extracts equipment/machine/tool directly from evidence without hardcoding."""
     if item.process_work_element and str(item.process_work_element).strip():
         return str(item.process_work_element).strip()
 
@@ -116,28 +116,33 @@ def _extract_equipment_name(item: MappedContextItem) -> Optional[str]:
     if not evidence_text:
         return None
 
-    # Check for specific equipment / station mentions
-    if re.search(r'(?i)\bjomar\b', evidence_text):
-        return "PC station - Jomar"
-    if re.search(r'(?i)\blectra\b', evidence_text):
-        return "CNC Lectra"
-    if re.search(r'(?i)\bwhse scan\w*\b|\bscanner\b', evidence_text):
-        return "WHSE Scanner"
-    if re.search(r'(?i)\bcnc\s+cutter\b', evidence_text):
-        return "CNC Cutter"
-    if re.search(r'(?i)\bcmm\b', evidence_text):
-        return "CMM Machine"
+    lead_noise = {
+        "to", "into", "using", "from", "for", "with", "by", "at", "on",
+        "the", "and", "or", "in", "etc.", "etc", "not", "incorrectly",
+        "uploaded", "receive", "documentation", "setup", "set-up", "operator", "mo", "against"
+    }
 
-    # Generic pattern: e.g. "X machine", "X station", "X cutter", "X system"
-    m = re.search(r'(?i)\b([A-Za-z0-9_\-]+\s+(?:machine|station|scanner|cutter|welder|press|fixture|jig|system))\b', evidence_text)
+    # Dynamic pattern: Extract phrases ending with equipment nouns
+    m = re.search(r'(?i)\b([A-Za-z0-9_\-\.\/]+(?:\s+[A-Za-z0-9_\-\.\/]+){0,3}\s+(?:machine|station|scanner|cutter|welder|press|fixture|jig|system|tester|terminal|reader|lathe|mill|grinder|furnace|sensor|knife))\b', evidence_text)
     if m:
-        return m.group(1).strip().capitalize()
+        raw_val = m.group(1).strip()
+        words = raw_val.split()
+        while words and words[0].lower().strip(".,:;-") in lead_noise:
+            words.pop(0)
+        cleaned = " ".join(words).strip(" .,:;-")
+        if cleaned and not any(stop in cleaned.lower() for stop in ["according", "maintenance", "service", "parameter", "failure"]):
+            return " ".join(w.capitalize() if not w.isupper() else w for w in cleaned.split())
+
+    # Dynamic pattern: Extract "CNC / CMM / PLC / [Noun] + [Equipment]"
+    m2 = re.search(r'(?i)\b((?:CNC|CMM|PLC|EDDY\s+CURRENT)\s+[A-Za-z0-9_\-]+)\b', evidence_text)
+    if m2:
+        return m2.group(1).strip()
 
     return None
 
 
 def _extract_specification_tolerance(item: MappedContextItem) -> Optional[str]:
-    """Dynamically extracts standard / work instruction from evidence."""
+    """Dynamically extracts standard / work instruction / numeric tolerance directly from evidence."""
     evidence_text = " ".join(filter(None, [
         item.detective_control,
         item.preventive_control,
@@ -147,24 +152,32 @@ def _extract_specification_tolerance(item: MappedContextItem) -> Optional[str]:
     if not evidence_text:
         return None
 
-    # Check for explicit standard / WI references
-    m_wi = re.search(r'(?i)\b(WI-[A-Za-z0-9\-\s/]+|PWI[A-Za-z0-9\-\s/]*|SWI[A-Za-z0-9\-\s/]*|FORM-[A-Za-z0-9]+)\b', evidence_text)
+    # 1. Dynamic extraction of standard / WI / Form references in text (must be followed by separator or digit)
+    m_wi = re.search(r'(?i)\b((?:WI|PWI|SWI|FORM|SOP|STD|ISO|ASTM|DIN)[-\s_0-9/][A-Za-z0-9\-\s/]*)\b', evidence_text)
     if m_wi:
-        code = m_wi.group(1).strip()
+        code = m_wi.group(1).strip(" .,:;-")
         return f"Per assigned {code}"
 
-    if re.search(r'(?i)\bbar\s*code\b|\bmo\s+pick\b', evidence_text):
-        return "Computer acceptance of bar code ticket via PC, visual control of the roll."
-    if re.search(r'(?i)\bfirst piece\b', evidence_text):
-        return "Per WI first piece approval standard"
-    if re.search(r'(?i)\bstandard\b', evidence_text):
-        return "Per assigned inspection standard"
+    # Also match standalone PWI / SWI as whole words
+    m_pwi = re.search(r'(?i)\b(PWI|SWI|SOP)\b', evidence_text)
+    if m_pwi:
+        return f"Per assigned {m_pwi.group(1).upper()}"
+
+    # 2. Dynamic extraction of numeric tolerances (e.g. 15.0 +/- 0.2 mm, 42.000 +0.015/-0.000 mm)
+    m_tol = re.search(r'(?i)\b(\d+[\d\.]*\s*(?:[\+\-±/]+[\d\.]*)+\s*(?:mm|cm|m|in|deg|hrc|mpa|psi|bar|kg|g|n|kn|v|mv|a|ma)?)\b', evidence_text)
+    if m_tol:
+        return m_tol.group(1).strip()
+
+    # 3. Dynamic extraction of hardness or range specs (e.g. 58-62 HRC)
+    m_range = re.search(r'(?i)\b(\d+[\d\.]*\s*-\s*\d+[\d\.]*\s*(?:HRC|HB|HV|mm|deg|psi|bar|N)?)\b', evidence_text)
+    if m_range:
+        return m_range.group(1).strip()
 
     return None
 
 
 def _extract_sample_size_and_frequency(item: MappedContextItem) -> Tuple[Optional[str], Optional[str]]:
-    """Dynamically extracts sample size and frequency from detective controls."""
+    """Dynamically extracts sample size and frequency directly from detective controls text."""
     text = item.detective_control or ""
     if not text:
         return None, None
@@ -172,31 +185,15 @@ def _extract_sample_size_and_frequency(item: MappedContextItem) -> Tuple[Optiona
     s_size = None
     s_freq = None
 
-    # Sample size
-    m_size = re.search(r'(?i)\b(\d+[\s]*(?:roll|rolls|pc|pcs|piece|pieces|samples?|x)|first piece|each piece|100%)\b', text)
+    # Dynamic extraction of sample size
+    m_size = re.search(r'(?i)\b(\d+[\s]*(?:roll|rolls|pc|pcs|piece|pieces|samples?|parts?|x)|first piece|each piece|100%)\b', text)
     if m_size:
-        s_size = m_size.group(1).capitalize()
-    elif "first piece" in text.lower():
-        s_size = "First piece"
-    elif "100%" in text:
-        s_size = "100%"
-    elif "approval" in text.lower():
-        s_size = "1x"
+        s_size = m_size.group(1).strip()
 
-    # Frequency
-    m_freq = re.search(r'(?i)\b(per\s+(?:order|stack|shift|lot|batch|roll|part|box)|each\s+(?:roll|piece|part)|1\s*/\s*shift|every\s+\w+)\b', text)
+    # Dynamic extraction of frequency
+    m_freq = re.search(r'(?i)\b(per\s+[A-Za-z0-9_\-]+|each\s+[A-Za-z0-9_\-]+|\d+\s*/\s*[A-Za-z0-9_\-]+|every\s+[\d\.]*\s*[A-Za-z0-9_\-]+)\b', text)
     if m_freq:
         s_freq = m_freq.group(1).strip()
-    elif "order" in text.lower():
-        s_freq = "Per order"
-    elif "stack" in text.lower():
-        s_freq = "Per stack"
-    elif "shift" in text.lower():
-        s_freq = "1/shift"
-    elif "roll" in text.lower():
-        s_freq = "each roll"
-    elif s_size == "First piece":
-        s_freq = "Per order"
 
     return s_size, s_freq
 
