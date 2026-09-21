@@ -239,7 +239,23 @@ def _build_control_plan_rows(
     """
     rows: List[ControlPlanRow] = []
 
-    for idx, item in enumerate(mapped_context.items, start=1):
+    # Consolidate items by unique characteristic per operation
+    # In APQP / AIAG Control Plans, each characteristic is listed once with its controls,
+    # rather than duplicating the characteristic for every failure cause from the PFMEA.
+    char_groups: Dict[Tuple[str, str], List[MappedContextItem]] = {}
+    for item in mapped_context.items:
+        op = str(item.operation_number or "").strip()
+        cid = str(item.characteristic_id or "").strip()
+        if not cid:
+            cid = str(item.product_characteristic or "").strip()
+        c_key = cid if cid else str(id(item))
+        group_key = (op, c_key)
+        if group_key not in char_groups:
+            char_groups[group_key] = []
+        char_groups[group_key].append(item)
+
+    for idx, (group_key, group_items) in enumerate(char_groups.items(), start=1):
+        item = group_items[0]
         row_key = f"{item.operation_number}_{idx}"
         draft = (draft_fields or {}).get(row_key) or (draft_fields or {}).get(item.operation_number) or {}
 
@@ -248,66 +264,80 @@ def _build_control_plan_rows(
         proc_segment = item.process_segment_name
         op_num = item.operation_number
         op_name = item.operation_name
-        prod_char = item.product_characteristic
+        prod_char = next((it.product_characteristic for it in group_items if it.product_characteristic), item.product_characteristic)
 
         # 2. AUTHOR Fields
         proc_char = draft.get("process_characteristic")
         if proc_char is None:
-            if item.process_characteristic:
-                proc_char = item.process_characteristic
-            elif item.failure_cause:
-                cause_clean = re.sub(
-                    r'^(insufficient|improper|incorrect|lack of|excessive)\s+',
-                    '',
-                    item.failure_cause,
-                    flags=re.IGNORECASE
-                ).strip()
-                proc_char = cause_clean.capitalize()
+            first_proc = next((it.process_characteristic for it in group_items if it.process_characteristic), None)
+            if first_proc:
+                proc_char = first_proc
             else:
-                proc_char = None
+                first_cause = next((it.failure_cause for it in group_items if it.failure_cause), None)
+                if first_cause:
+                    cause_clean = re.sub(
+                        r'^(insufficient|improper|incorrect|lack of|excessive)\s+',
+                        '',
+                        first_cause,
+                        flags=re.IGNORECASE
+                    ).strip()
+                    proc_char = cause_clean.capitalize()
+                else:
+                    proc_char = None
 
         spec_class = draft.get("special_characteristic_class")
         if spec_class is None:
-            spec_class = _derive_special_characteristic(item.severity_rating, item.occurrence_rating)
+            max_sev = max((it.severity_rating for it in group_items if it.severity_rating is not None), default=None)
+            max_occ = max((it.occurrence_rating for it in group_items if it.occurrence_rating is not None), default=None)
+            spec_class = _derive_special_characteristic(max_sev, max_occ)
 
         eval_tech = draft.get("evaluation_measurement_technique")
         if eval_tech is None:
+            first_det = next((it.detective_control for it in group_items if it.detective_control), None)
             eval_tech = _clean_control_text(
-                item.detective_control,
+                first_det,
                 ["detective controls:", "detective control:", "detection:", "current process controls: detection"]
             )
 
         ctrl_method = draft.get("control_method")
         if ctrl_method is None:
+            first_prev = next((it.preventive_control for it in group_items if it.preventive_control), None)
             ctrl_method = _clean_control_text(
-                item.preventive_control,
+                first_prev,
                 ["preventive controls:", "preventive control:", "prevention:", "current process controls: prevention"]
             )
 
         reaction_plan = draft.get("reaction_plan")
+        has_any_det = any(it.detective_control and str(it.detective_control).strip() for it in group_items)
         if reaction_plan is None:
-            if item.detective_control and str(item.detective_control).strip():
+            if has_any_det:
                 reaction_plan = "Contain suspect parts. Notify Quality. Disposition per MRB."
             else:
                 reaction_plan = None
         else:
-            if not item.detective_control or not str(item.detective_control).strip():
+            if not has_any_det:
                 reaction_plan = None
 
         # 3. Dynamic Evidence-Grounded Extraction
-        t_name = draft.get("tool_name") or _extract_equipment_name(item)
+        t_name = draft.get("tool_name") or next((_extract_equipment_name(it) for it in group_items if _extract_equipment_name(it)), None)
         t_num = draft.get("tool_number") if is_existing_baseline else None
         g_num = draft.get("gage_number") if is_existing_baseline else None
 
-        spec_tol = draft.get("specification_tolerance") or _extract_specification_tolerance(item)
+        spec_tol = draft.get("specification_tolerance") or next((_extract_specification_tolerance(it) for it in group_items if _extract_specification_tolerance(it)), None)
 
         s_size = draft.get("sample_size")
         s_freq = draft.get("sample_frequency")
         if not s_size or not s_freq:
-            ext_size, ext_freq = _extract_sample_size_and_frequency(item)
-            s_size = s_size or ext_size
-            s_freq = s_freq or ext_freq
+            for it in group_items:
+                ext_size, ext_freq = _extract_sample_size_and_frequency(it)
+                if ext_size and not s_size:
+                    s_size = ext_size
+                if ext_freq and not s_freq:
+                    s_freq = ext_freq
+                if s_size and s_freq:
+                    break
 
+        char_id_val = next((it.characteristic_id for it in group_items if it.characteristic_id), item.characteristic_id)
 
         row = ControlPlanRow(
             production_item_name=prod_item,
@@ -326,7 +356,7 @@ def _build_control_plan_rows(
             sample_size=s_size,
             sample_frequency=s_freq,
             reaction_plan=reaction_plan,
-            characteristic_id=item.characteristic_id,
+            characteristic_id=char_id_val,
             csr=item.csr,
             responsibility=item.responsibility,
         )

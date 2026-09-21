@@ -97,6 +97,9 @@ def _build_cd6_body(ws_b: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any
     align_left = Alignment(horizontal="left", vertical="top", wrap_text=True)
 
     current_row = 3
+    op_blocks: List[Dict[str, Any]] = []
+    current_op = None
+    current_op_start = 3
     op_start_rows = set()
 
     for idx, row_item in enumerate(rows, start=1):
@@ -107,6 +110,10 @@ def _build_cd6_body(ws_b: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any
         is_first = op_num not in op_start_rows
         if is_first:
             op_start_rows.add(op_num)
+            if current_op is not None and op_num != current_op:
+                op_blocks.append({"op_num": current_op, "start": current_op_start, "end": current_row - 1})
+                current_op_start = current_row
+            current_op = op_num
 
         char_no = (
             r_dict.get("characteristic_id") or
@@ -155,21 +162,48 @@ def _build_cd6_body(ws_b: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any
             None
         ]
 
-        ws_b.row_dimensions[current_row].height = 24
+        r_a = current_row
+        r_b = current_row + 1
+
+        ws_b.row_dimensions[r_a].height = 24
         for c_idx, val in enumerate(row_a, start=1):
-            cell = ws_b.cell(row=current_row, column=c_idx, value=val)
+            cell = ws_b.cell(row=r_a, column=c_idx, value=val)
             cell.font = font_data
             cell.border = thin_border
             cell.alignment = align_center if c_idx in (1, 2, 6, 9, 10) else align_left
-        current_row += 1
 
-        ws_b.row_dimensions[current_row].height = 24
+        ws_b.row_dimensions[r_b].height = 24
         for c_idx, val in enumerate(row_b, start=1):
-            cell = ws_b.cell(row=current_row, column=c_idx, value=val)
+            cell = ws_b.cell(row=r_b, column=c_idx, value=val)
             cell.font = font_data
             cell.border = thin_border
             cell.alignment = align_center if c_idx in (13, 14) else align_left
-        current_row += 1
+
+        # Merge Characteristic cells vertically across row_a and row_b (Cols F to K)
+        for c_idx in range(6, 12):
+            ws_b.merge_cells(start_row=r_a, start_column=c_idx, end_row=r_b, end_column=c_idx)
+            c_align = align_center if c_idx in (6, 9, 10) else align_left
+            ws_b.cell(row=r_a, column=c_idx).alignment = Alignment(
+                horizontal=c_align.horizontal, vertical="center", wrap_text=True
+            )
+
+        current_row += 2
+
+    # Close the last operation block
+    if current_op is not None and current_row > current_op_start:
+        op_blocks.append({"op_num": current_op, "start": current_op_start, "end": current_row - 1})
+
+    # Merge Operation-level cells vertically across all rows in each operation (Cols A, B, C, D, R)
+    for block in op_blocks:
+        st = block["start"]
+        en = block["end"]
+        if en > st:
+            for c_idx in (1, 2, 3, 4, 18):
+                ws_b.merge_cells(start_row=st, start_column=c_idx, end_row=en, end_column=c_idx)
+                c_align_h = "center" if c_idx in (1, 2) else "left"
+                ws_b.cell(row=st, column=c_idx).alignment = Alignment(
+                    horizontal=c_align_h, vertical="center", wrap_text=True
+                )
 
 
 def _export_cd6_format(rows: List[Any], output_path: str):

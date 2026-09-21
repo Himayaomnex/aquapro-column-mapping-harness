@@ -88,6 +88,8 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
     op_col_indices: List[int] = []
     desc_col_indices: List[int] = []
     seg_col_indices: List[int] = []
+    char_col_indices: List[int] = []
+    prod_col_indices: List[int] = []
 
     for col_idx in range(1, sheet.max_column + 1):
         val = sheet.cell(row=header_row_idx, column=col_idx).value
@@ -101,6 +103,10 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
             desc_col_indices.append(col_idx - 1)
         elif any(k in h_lower for k in ["process function", "process segment"]):
             seg_col_indices.append(col_idx - 1)
+        elif any(k in h_lower for k in ["characteristic id", "char id", "char no", "characteristic #", "char #"]):
+            char_col_indices.append(col_idx - 1)
+        elif any(k in h_lower for k in ["product characteristic", "product"]):
+            prod_col_indices.append(col_idx - 1)
 
     raw_rows: List[Dict[str, Any]] = []
     
@@ -108,6 +114,8 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
     last_op_val = None
     last_desc_val = None
     last_seg_val = None
+    last_char_val = None
+    last_prod_val = None
 
     for row_idx in range(header_row_idx + 1, sheet.max_row + 1):
         row_vals: List[Any] = [sheet.cell(row=row_idx, column=c).value for c in range(1, len(headers) + 1)]
@@ -135,8 +143,23 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
                 curr_seg = str(row_vals[seg_i]).strip()
                 break
 
+        curr_char = None
+        for char_i in char_col_indices:
+            if char_i < len(row_vals) and row_vals[char_i] is not None and str(row_vals[char_i]).strip() != "":
+                curr_char = str(row_vals[char_i]).strip()
+                break
+
+        curr_prod = None
+        for prod_i in prod_col_indices:
+            if prod_i < len(row_vals) and row_vals[prod_i] is not None and str(row_vals[prod_i]).strip() != "":
+                curr_prod = str(row_vals[prod_i]).strip()
+                break
+
         # Update forward fill memory
         if curr_op:
+            if curr_op != last_op_val:
+                last_char_val = None
+                last_prod_val = None
             last_op_val = curr_op
             last_desc_val = curr_desc or last_desc_val
             last_seg_val = curr_seg or last_seg_val
@@ -154,6 +177,18 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
                     for seg_i in seg_col_indices:
                         if seg_i < len(row_vals) and (row_vals[seg_i] is None or str(row_vals[seg_i]).strip() == ""):
                             row_vals[seg_i] = last_seg_val
+
+        if curr_char:
+            last_char_val = curr_char
+            last_prod_val = curr_prod or last_prod_val
+        elif last_char_val:
+            for char_i in char_col_indices:
+                if char_i < len(row_vals) and (row_vals[char_i] is None or str(row_vals[char_i]).strip() == ""):
+                    row_vals[char_i] = last_char_val
+            if last_prod_val:
+                for prod_i in prod_col_indices:
+                    if prod_i < len(row_vals) and (row_vals[prod_i] is None or str(row_vals[prod_i]).strip() == ""):
+                        row_vals[prod_i] = last_prod_val
 
         # Construct row dict
         row_dict: Dict[str, Any] = {}
