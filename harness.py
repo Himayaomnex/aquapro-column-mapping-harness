@@ -799,11 +799,28 @@ def export_node(state: AgentState) -> Dict[str, Any]:
             print(f"\nUncertainty Note: {adhoc.get('uncertainty')}")
         print(f"===================================================================================")
 
-        # Save JSON output
-        out_json = state.get("output_path") if state.get("output_path") and state["output_path"].endswith(".json") else "output/ad_hoc_analysis.json"
+        # Generate dynamic query-specific filename based on question
+        q_text = adhoc.get("question") or state.get("task") or "query"
+        clean_q = re.sub(r'[^a-zA-Z0-9\s]', '', q_text).lower()
+        stop_words = {"which", "what", "are", "the", "in", "on", "for", "with", "have", "do", "does", "is", "a", "an", "operations", "operation"}
+        q_words = [w for w in clean_q.split() if w not in stop_words][:5]
+        if not q_words:
+            q_words = clean_q.split()[:5]
+        q_slug = "_".join(q_words) if q_words else "analysis"
+
+        # Determine query-specific output path
+        specific_json = f"output/ad_hoc_{q_slug}.json"
+        default_json = "output/ad_hoc_analysis.json"
+        out_json = state.get("output_path") if state.get("output_path") and state["output_path"].endswith(".json") else specific_json
+
         os.makedirs(os.path.dirname(out_json) or ".", exist_ok=True)
         with open(out_json, "w", encoding="utf-8") as jf:
             json.dump(adhoc, jf, indent=2)
+
+        # Also always update default mirror ad_hoc_analysis.json
+        if os.path.abspath(out_json) != os.path.abspath(default_json):
+            with open(default_json, "w", encoding="utf-8") as jf:
+                json.dump(adhoc, jf, indent=2)
 
         # Print audit dashboard
         tokens_used = 60000 - state.get("budget_tokens_remaining", 60000)
@@ -824,6 +841,8 @@ def export_node(state: AgentState) -> Dict[str, Any]:
             print(f"  {idx}. {tname}({arg_str})")
             print(f"     -> {obs.get('status')}: {obs.get('summary')}")
         print(f"Artifact Saved:      {os.path.abspath(out_json)}")
+        if os.path.abspath(out_json) != os.path.abspath(default_json):
+            print(f"Latest Mirror:       {os.path.abspath(default_json)}")
         print(f"===================================================================================\n")
         return {"status": "COMPLETE"}
 
