@@ -521,8 +521,63 @@ Return a single JSON object strictly matching this schema:
             ctx_items = state["mapped_context"].items if state.get("mapped_context") else []
             t_lower = task_str.lower()
 
-            # Query A: Top failure modes / highest severity / highest risk
-            if any(k in t_lower for k in ["top", "highest severity", "highest risk", "most severe", "severity"]):
+            # Query A: Error-proofing / poka-yoke / high severity without automated controls
+            if any(k in t_lower for k in ["error-proofing", "error proofing", "poka-yoke", "poka yoke", "interlock"]):
+                ops_high_sev = []
+                for itm in ctx_items:
+                    sev = itm.severity_rating or 0
+                    prev = (itm.preventive_control or "").lower()
+                    has_poka = "poka" in prev or "error" in prev or "interlock" in prev or "automatic" in prev or "sensor" in prev
+                    if sev >= 8 and not has_poka:
+                        ops_high_sev.append({
+                            "operation": itm.operation_number,
+                            "operation_name": itm.operation_name,
+                            "severity": sev,
+                            "cause": itm.failure_cause,
+                            "current_control": itm.preventive_control or "None"
+                        })
+                adhoc_res = {
+                    "question": task_str,
+                    "answer": f"Identified {len(ops_high_sev)} operations with Severity >= 8 lacking automated error-proofing.",
+                    "claims": [
+                        {
+                            "claim": f"Operation {o['operation']} ({o['operation_name']}) has Severity {o['severity']} for cause '{o['cause']}' with manual control '{o['current_control']}'.",
+                            "evidence_ids": [f"Op {o['operation']}"]
+                        }
+                        for o in ops_high_sev[:8]
+                    ],
+                    "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
+                    "uncertainty": None if ops_high_sev else "No high-severity operations lacking error proofing found in retrieved dataset."
+                }
+
+            # Query B: Visual inspection / manual check
+            elif any(k in t_lower for k in ["visual", "manual", "inspection", "verificación", "vista"]):
+                vis_items = []
+                seen_ops = set()
+                for it in ctx_items:
+                    det = (it.detective_control or "").lower()
+                    if any(w in det for w in ["visual", "vista", "verificaci", "inspecci", "manual"]):
+                        if it.operation_number not in seen_ops:
+                            seen_ops.add(it.operation_number)
+                            vis_items.append(it)
+                claims = [
+                    {
+                        "claim": f"Operation {it.operation_number} ({it.operation_name}) uses visual inspection: '{it.detective_control}'.",
+                        "evidence_ids": [f"Op {it.operation_number}"]
+                    }
+                    for it in vis_items
+                ]
+                ops_list = [it.operation_number for it in vis_items]
+                adhoc_res = {
+                    "question": task_str,
+                    "answer": f"Identified {len(vis_items)} operations relying on visual or manual verification controls: Operations {ops_list}.",
+                    "claims": claims,
+                    "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
+                    "uncertainty": None if vis_items else "No operations with explicit visual inspection descriptions found."
+                }
+
+            # Query C: Top failure modes / highest severity / highest risk ranking
+            else:
                 ranked = sorted(
                     [it for it in ctx_items if it.severity_rating is not None and it.failure_mode],
                     key=lambda x: x.severity_rating or 0,
@@ -552,61 +607,6 @@ Return a single JSON object strictly matching this schema:
                     "claims": claims,
                     "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
                     "uncertainty": None if top_items else "No failure modes with numeric severity ratings found in source."
-                }
-
-            # Query B: Visual inspection / manual check
-            elif any(k in t_lower for k in ["visual", "manual", "inspection", "verificación", "vista"]):
-                vis_items = []
-                seen_ops = set()
-                for it in ctx_items:
-                    det = (it.detective_control or "").lower()
-                    if any(w in det for w in ["visual", "vista", "verificaci", "inspecci", "manual"]):
-                        if it.operation_number not in seen_ops:
-                            seen_ops.add(it.operation_number)
-                            vis_items.append(it)
-                claims = [
-                    {
-                        "claim": f"Operation {it.operation_number} ({it.operation_name}) uses visual inspection: '{it.detective_control}'.",
-                        "evidence_ids": [f"Op {it.operation_number}"]
-                    }
-                    for it in vis_items
-                ]
-                ops_list = [it.operation_number for it in vis_items]
-                adhoc_res = {
-                    "question": task_str,
-                    "answer": f"Identified {len(vis_items)} operations relying on visual or manual verification controls: Operations {ops_list}.",
-                    "claims": claims,
-                    "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
-                    "uncertainty": None if vis_items else "No operations with explicit visual inspection descriptions found."
-                }
-
-            # Query C: Error-proofing / poka-yoke / severity >= 8
-            else:
-                ops_high_sev = []
-                for itm in ctx_items:
-                    sev = itm.severity_rating or 0
-                    prev = (itm.preventive_control or "").lower()
-                    has_poka = "poka" in prev or "error" in prev or "interlock" in prev or "automatic" in prev or "sensor" in prev
-                    if sev >= 8 and not has_poka:
-                        ops_high_sev.append({
-                            "operation": itm.operation_number,
-                            "operation_name": itm.operation_name,
-                            "severity": sev,
-                            "cause": itm.failure_cause,
-                            "current_control": itm.preventive_control or "None"
-                        })
-                adhoc_res = {
-                    "question": task_str,
-                    "answer": f"Identified {len(ops_high_sev)} operations with Severity >= 8 lacking automated error-proofing.",
-                    "claims": [
-                        {
-                            "claim": f"Operation {o['operation']} ({o['operation_name']}) has Severity {o['severity']} for cause '{o['cause']}' with manual control '{o['current_control']}'.",
-                            "evidence_ids": [f"Op {o['operation']}"]
-                        }
-                        for o in ops_high_sev[:8]
-                    ],
-                    "operations_analyzed": state["mapped_context"].source_operations if state.get("mapped_context") else [],
-                    "uncertainty": None if ops_high_sev else "No high-severity operations lacking error proofing found in retrieved dataset."
                 }
 
         print(f"[compose_node] Formulated analytical response for ad_hoc Q&A: {adhoc_res.get('answer', '')[:100]}...")
