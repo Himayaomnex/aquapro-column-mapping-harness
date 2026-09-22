@@ -493,10 +493,14 @@ def excel_exporter(
                 print("[Excel Exporter] Applying CD6 Production Benchmark Format (Header + Body + Footer)...")
                 _export_cd6_format(rows, abs_output_path)
             else:
-                print("[Excel Exporter] Applying AIAG APQP Benchmark Format (Header + Body)...")
-                part_name = "CNC Operation"
-                if isinstance(sample_item, ControlPlanRow) and sample_item.production_item_name:
+                part_name = "Production Item"
+                base_file = os.path.basename(abs_output_path).replace("_Control_Plan.xlsx", "").replace("_Control_Plan", "").replace(".xlsx", "").replace("_", " ").strip()
+                if isinstance(sample_item, ControlPlanRow) and sample_item.production_item_name and sample_item.production_item_name != "Production Item":
                     part_name = sample_item.production_item_name
+                elif isinstance(sample_dict, dict) and sample_dict.get("production_item_name") and sample_dict.get("production_item_name") != "Production Item":
+                    part_name = str(sample_dict.get("production_item_name"))
+                elif base_file and base_file.lower() not in ("control plan", "output", "test output"):
+                    part_name = base_file
                 _export_cnc_format(rows, abs_output_path, part_name=part_name)
         else:
             # Multi-capability professional VDA 7-Step & DFMEA format
@@ -530,6 +534,13 @@ def excel_exporter(
                     ("target_date", "Target Date"),
                     ("action_status", "Status"),
                 ]
+                section_defs = [
+                    ("Structure Analysis", 1, 3, "FF4472C4", "FFFFFFFF"),
+                    ("Functional Analysis", 4, 6, "FFFFC000", "FF000000"),
+                    ("Failure Analysis", 7, 11, "FFF4B183", "FF000000"),
+                    ("Risk Analysis", 12, 16, "FFFF0000", "FFFFFFFF"),
+                    ("Optimization", 17, 20, "FF5B9BD5", "FFFFFFFF"),
+                ]
             elif is_pfmea_vda:
                 sheet_title = "PFMEA"
                 col_defs = [
@@ -555,9 +566,17 @@ def excel_exporter(
                     ("target_date", "Target Date"),
                     ("status", "Status"),
                 ]
+                section_defs = [
+                    ("Structure Analysis", 1, 3, "FF4472C4", "FFFFFFFF"),
+                    ("Functional Analysis", 4, 6, "FFFFC000", "FF000000"),
+                    ("Failure Analysis", 7, 11, "FFF4B183", "FF000000"),
+                    ("Risk Analysis", 12, 16, "FFFF0000", "FFFFFFFF"),
+                    ("Optimization", 17, 21, "FF5B9BD5", "FFFFFFFF"),
+                ]
             else:
                 sheet_title = "Body"
                 col_defs = [(k, k.replace("_", " ").title()) for k in sample_dict.keys()]
+                section_defs = []
 
             ws = wb.create_sheet(title=sheet_title)
 
@@ -573,9 +592,28 @@ def excel_exporter(
             align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
             align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-            ws.row_dimensions[1].height = 28
+            if section_defs:
+                header_row_idx = 2
+                data_start_row = 3
+                ws.row_dimensions[1].height = 24
+                for s_label, s_start, s_end, s_color, s_font_color in section_defs:
+                    if s_start < s_end:
+                        ws.merge_cells(start_row=1, start_column=s_start, end_row=1, end_column=s_end)
+                    fill_sec = PatternFill(start_color=s_color, end_color=s_color, fill_type="solid")
+                    font_sec = Font(name="Calibri", size=10, bold=True, color=s_font_color)
+                    for c_idx in range(s_start, s_end + 1):
+                        c = ws.cell(row=1, column=c_idx)
+                        c.fill = fill_sec
+                        c.border = thin_border
+                        c.alignment = align_center
+                    ws.cell(row=1, column=s_start, value=s_label).font = font_sec
+            else:
+                header_row_idx = 1
+                data_start_row = 2
+
+            ws.row_dimensions[header_row_idx].height = 28
             for col_idx, (_, d_name) in enumerate(col_defs, start=1):
-                cell = ws.cell(1, col_idx, d_name)
+                cell = ws.cell(header_row_idx, col_idx, d_name)
                 cell.fill = fill_header
                 cell.font = font_header
                 cell.alignment = align_center
@@ -590,7 +628,7 @@ def excel_exporter(
             fill_ap_m = PatternFill(start_color="FFFFEB9C", end_color="FFFFEB9C", fill_type="solid")
             fill_ap_l = PatternFill(start_color="FFC6EFCE", end_color="FFC6EFCE", fill_type="solid")
 
-            for r_idx, r_item in enumerate(rows, start=2):
+            for r_idx, r_item in enumerate(rows, start=data_start_row):
                 ws.row_dimensions[r_idx].height = 22
                 r_d = r_item.to_dict() if hasattr(r_item, "to_dict") else r_item
                 for c_idx, (k, _) in enumerate(col_defs, start=1):
