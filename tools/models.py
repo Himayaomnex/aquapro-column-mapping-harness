@@ -54,7 +54,12 @@ class MappedContextItem(BaseModel):
     source_sheet: str = "Sheet1"
     source_row: int = 0
     source_type: str = "file"  # file | rag_data | ai_suggestion | existing_document
+    source_lineage: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     unmapped_fields: List[str] = Field(default_factory=list)
+
+    def get_source_coordinate(self, field_name: str) -> Optional[Dict[str, Any]]:
+        """Returns cell-level coordinate info for a canonical field if available."""
+        return self.source_lineage.get(field_name)
 
 
 class MappedContext(BaseModel):

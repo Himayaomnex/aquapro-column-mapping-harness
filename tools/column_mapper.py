@@ -304,12 +304,16 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
         canonical_values: Dict[str, Any] = {}
         row_unmapped: List[str] = []
 
+        source_lineage: Dict[str, Dict[str, Any]] = {}
+        cell_coords = row.get("_cell_coordinates", {})
         for raw_k, val in row.items():
             if raw_k.startswith("_"):
                 continue
             if raw_k in header_to_canonical:
                 canonical_k = header_to_canonical[raw_k]
                 canonical_values[canonical_k] = val
+                if raw_k in cell_coords:
+                    source_lineage[canonical_k] = cell_coords[raw_k]
             elif val is not None and str(val).strip() != "":
                 row_unmapped.append(raw_k)
 
@@ -450,6 +454,7 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
             source_sheet=str(row.get("_source_sheet") or "Body"),
             source_row=int(row.get("_source_row", 0)),
             source_type="file",
+            source_lineage=source_lineage,
             unmapped_fields=row_unmapped,
         )
         items.append(item)

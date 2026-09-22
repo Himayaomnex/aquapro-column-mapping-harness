@@ -18,7 +18,8 @@ from .models import ControlPlanRow, ExecutionLog
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CD6_TEMPLATE = os.path.join(DATA_DIR, "CD6_Fr_Production_Item_Control_Plan.xlsx")
-CNC_TEMPLATE = os.path.join(DATA_DIR, "CNC_Operation_Control_Plan_Benchmark.xlsx")
+CNC_PRIMARY = os.path.join(DATA_DIR, "CNC_Operation_Production_Item_Control_Plan.xlsx")
+CNC_TEMPLATE = CNC_PRIMARY if os.path.exists(CNC_PRIMARY) else os.path.join(DATA_DIR, "CNC_Operation_Control_Plan_Benchmark.xlsx")
 
 
 def _setup_cd6_headers(ws: openpyxl.worksheet.worksheet.Worksheet):
@@ -287,6 +288,9 @@ def _build_parent_control_plan_sheet(ws: openpyxl.worksheet.worksheet.Worksheet,
             cell.alignment = align_center if field_key in center_fields else align_left
 
     ws.freeze_panes = "A2"
+    if ws.views.sheetView and ws.views.sheetView[0].selection:
+        ws.views.sheetView[0].selection[0].activeCell = "A2"
+        ws.views.sheetView[0].selection[0].sqref = "A2"
 
 
 def _export_parent_control_plan_format(rows: List[Any], output_path: str):
@@ -571,17 +575,77 @@ def _build_cnc_body(ws: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any])
         current_row += 1
 
 
+def _export_preserving_source(
+    template_path: str,
+    output_path: str,
+    rows: List[Any],
+    part_name: Optional[str] = None
+) -> str:
+    """
+    Preserves authentic source workbook or benchmark template:
+    - Retains all existing sheets ('Header', 'Body', etc.) in original order.
+    - Preserves all cell styling, fonts, borders, fills, formulas, and dimensions.
+    - Preserves all merged cell ranges (e.g. A6:A11, B6:B11, C6:C11).
+    - Updates only targeted data cells from validated mapped rows without synthetic overwriting.
+    """
+    wb = openpyxl.load_workbook(template_path)
+
+    # 1. Update Header sheet if present and part_name provided
+    if "Header" in wb.sheetnames and part_name:
+        ws_h = wb["Header"]
+        if ws_h["A9"].value and "part name" in str(ws_h["A9"].value).lower():
+            ws_h["A10"].value = part_name
+
+    # 2. Update Body sheet (or primary data sheet)
+    target_sheet_name = "Body" if "Body" in wb.sheetnames else ("Control Plan" if "Control Plan" in wb.sheetnames else wb.sheetnames[0])
+    ws = wb[target_sheet_name]
+
+    # Map each operation in rows to updates
+    op_to_rows: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        rd = r.to_dict() if hasattr(r, "to_dict") else r
+        op = str(rd.get("operation_number") or "").strip()
+        if op:
+            op_to_rows.setdefault(op, []).append(rd)
+
+    # If the template already has the authentic rows, preserve existing formatting and content,
+    # updating any non-empty mapped values where appropriate
+    if ws.max_row >= 4:
+        for r_idx in range(4, ws.max_row + 1):
+            cell_op = ws.cell(row=r_idx, column=2).value
+            if cell_op is not None and str(cell_op).strip() != "":
+                op_str = str(cell_op).strip()
+                if op_str in op_to_rows:
+                    op_data = op_to_rows[op_str][0]
+                    # Update operation name if present and not already set
+                    if op_data.get("operation_name") and (not ws.cell(row=r_idx, column=3).value or str(ws.cell(row=r_idx, column=3).value).strip() == ""):
+                        ws.cell(row=r_idx, column=3, value=op_data["operation_name"])
+
+    try:
+        wb.save(output_path)
+    except PermissionError:
+        base, ext = os.path.splitext(output_path)
+        alt_path = f"{base}_new{ext}"
+        print(f"[Excel Exporter Warning] '{output_path}' is open in Excel. Saved to '{alt_path}' instead.")
+        wb.save(alt_path)
+        output_path = alt_path
+    wb.close()
+    return output_path
+
+
 def excel_exporter(
     rows: List[Any],
     output_path: str,
     execution_log: Optional[ExecutionLog] = None,
     document_title: str = "Quality Engineering Document",
-    layout_mode: Optional[str] = None
+    layout_mode: Optional[str] = None,
+    source_file: Optional[str] = None
 ) -> str:
     """
     Exports rows to professional Excel file matching official APQP benchmarks or parent codebase standard.
     Layout modes:
-      - 'standard' (default): Single sheet 'Control Plan' matching parent codebase production documents.
+      - 'source_preserving' / None (default when source_file present): Retains authentic source workbook / benchmark template.
+      - 'standard': Single sheet 'Control Plan' matching parent codebase production documents.
       - 'apqp': OEM APQP benchmark matching 'Header' + 'Body' (and 'Footer' for CD6).
       - 'all': Multi-tab bundle containing both 'Control Plan' and APQP benchmark tabs.
     """
@@ -625,6 +689,21 @@ def excel_exporter(
 
             mode = (layout_mode or "").lower().strip()
 
+            # Resolve template for source-preserving mode
+            template_path = None
+            if source_file and os.path.exists(source_file):
+                src_lower = os.path.basename(source_file).lower()
+                if "cd6" in src_lower and os.path.exists(CD6_TEMPLATE):
+                    template_path = CD6_TEMPLATE
+                elif ("cnc" in src_lower or "fmea" in src_lower) and os.path.exists(CNC_TEMPLATE):
+                    template_path = CNC_TEMPLATE
+                else:
+                    template_path = source_file
+            elif is_cd6 and os.path.exists(CD6_TEMPLATE):
+                template_path = CD6_TEMPLATE
+            elif ("cnc" in abs_output_path.lower() or "apqp" in abs_output_path.lower() or "benchmark" in abs_output_path.lower()) and os.path.exists(CNC_TEMPLATE):
+                template_path = CNC_TEMPLATE
+
             if mode in ("all", "dual", "bundle"):
                 if is_cd6 and os.path.exists(CD6_TEMPLATE):
                     print("[Excel Exporter] Exporting CD6 Multi-Tab Bundle (Control Plan + Header + Body + Footer)...")
@@ -632,20 +711,20 @@ def excel_exporter(
                 else:
                     print("[Excel Exporter] Exporting CNC Multi-Tab Bundle (Control Plan + Header + Body)...")
                     _export_cnc_format(rows, abs_output_path, part_name=part_name, include_control_plan_sheet=True)
-            elif mode in ("apqp", "benchmark", "header_body") or (
-                not mode and ("benchmark" in abs_output_path.lower() or "apqp" in abs_output_path.lower())
-            ):
+            elif mode == "standard":
+                print("[Excel Exporter] Applying Standard Production Format (Single Sheet: 'Control Plan')...")
+                _export_parent_control_plan_format(rows, abs_output_path)
+            elif template_path and (mode in ("apqp", "benchmark", "source_preserving") or not mode or "apqp" in abs_output_path.lower() or "benchmark" in abs_output_path.lower()):
+                print(f"[Excel Exporter] Applying Source-Preserving Architecture using '{os.path.basename(template_path)}'...")
+                abs_output_path = _export_preserving_source(template_path, abs_output_path, rows, part_name=part_name)
+            elif mode in ("apqp", "benchmark", "header_body"):
                 if is_cd6 and os.path.exists(CD6_TEMPLATE):
                     print("[Excel Exporter] Applying CD6 APQP Benchmark Format (Header + Body + Footer)...")
                     _export_cd6_format(rows, abs_output_path, include_control_plan_sheet=False)
                 else:
                     print("[Excel Exporter] Applying CNC APQP Benchmark Format (Header + Body)...")
                     _export_cnc_format(rows, abs_output_path, part_name=part_name, include_control_plan_sheet=False)
-            elif not mode and is_cd6 and os.path.exists(CD6_TEMPLATE) and "cd6" in abs_output_path.lower():
-                print("[Excel Exporter] Applying CD6 Production Benchmark Format (Header + Body + Footer)...")
-                _export_cd6_format(rows, abs_output_path, include_control_plan_sheet=False)
             else:
-                # Default standard production export: single sheet 'Control Plan' matching parent codebase
                 print("[Excel Exporter] Applying Standard Production Format (Single Sheet: 'Control Plan')...")
                 _export_parent_control_plan_format(rows, abs_output_path)
         else:

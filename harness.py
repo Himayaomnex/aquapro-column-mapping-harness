@@ -867,7 +867,13 @@ def export_node(state: AgentState) -> Dict[str, Any]:
         output_file=os.path.abspath(state["output_path"])
     )
 
-    excel_exporter(state["built_rows"], state["output_path"], execution_log=log, layout_mode=state.get("layout_mode"))
+    excel_exporter(
+        state["built_rows"],
+        state["output_path"],
+        execution_log=log,
+        layout_mode=state.get("layout_mode"),
+        source_file=state.get("file_path")
+    )
 
     print(f"\n==================== Validated Output Preview ({cap_id}) ====================")
     print(f"{'Op #':<6} | {'Operation Description':<25} | {'Cls':<4} | {'Control Method':<26} | {'Reaction Plan':<24}")
@@ -939,7 +945,13 @@ def degrade_node(state: AgentState) -> Dict[str, Any]:
         output_file=os.path.abspath(state["output_path"])
     )
 
-    excel_exporter(passing_rows, state["output_path"], execution_log=log, layout_mode=state.get("layout_mode"))
+    excel_exporter(
+        passing_rows,
+        state["output_path"],
+        execution_log=log,
+        layout_mode=state.get("layout_mode"),
+        source_file=state.get("file_path")
+    )
     return {"status": "DEGRADED"}
 
 

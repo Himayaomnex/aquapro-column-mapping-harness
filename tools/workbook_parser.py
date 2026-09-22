@@ -9,6 +9,7 @@ Deterministic, zero LLM calls.
 from typing import List, Dict, Any, Optional, Tuple
 import os
 import openpyxl
+from openpyxl.utils import get_column_letter
 
 
 KEYWORD_WEIGHTS = {
@@ -265,8 +266,17 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
 
         # Construct row dict
         row_dict: Dict[str, Any] = {}
+        cell_coords: Dict[str, Dict[str, Any]] = {}
         has_content = False
-        for h, val in zip(headers, row_vals):
+        for c_idx, (h, val) in enumerate(zip(headers, row_vals), start=1):
+            col_letter = get_column_letter(c_idx)
+            cell_coords[h] = {
+                "sheet": sheet_name,
+                "row": row_idx,
+                "column": c_idx,
+                "cell": f"{col_letter}{row_idx}",
+                "original_header": h
+            }
             if val is not None and str(val).strip() != "":
                 has_content = True
                 if h not in row_dict or row_dict[h] is None or str(row_dict[h]).strip() == "":
@@ -278,6 +288,7 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
         if has_content:
             row_dict["_source_sheet"] = sheet_name
             row_dict["_source_row"] = row_idx
+            row_dict["_cell_coordinates"] = cell_coords
             raw_rows.append(row_dict)
 
     wb.close()
