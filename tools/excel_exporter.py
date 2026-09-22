@@ -497,38 +497,124 @@ def excel_exporter(
                     part_name = sample_item.production_item_name
                 _export_cnc_format(rows, abs_output_path, part_name=part_name)
         else:
-            # Multi-capability generic format (VDA 7-Step, DFMEA)
+            # Multi-capability professional VDA 7-Step & DFMEA format
             wb = openpyxl.Workbook()
             wb.remove(wb.active)
-            ws = wb.create_sheet(title="Body")
-            headers = [(k, k.replace("_", " ").title()) for k in sample_dict.keys()]
-            fill_header = PatternFill(start_color="FFD3D3D3", end_color="FFD3D3D3", fill_type="solid")
-            font_header = Font(name="Calibri", size=9, bold=True)
+
+            is_dfmea = "higher_level_element" in sample_dict or "focus_element" in sample_dict
+            is_pfmea_vda = "process_step" in sample_dict or "process_item" in sample_dict
+
+            if is_dfmea:
+                sheet_title = "DFMEA"
+                col_defs = [
+                    ("higher_level_element", "Higher Level (System)"),
+                    ("focus_element", "Focus Element (Subsystem)"),
+                    ("lower_level_element", "Lower Level (Component)"),
+                    ("system_function", "System Function"),
+                    ("focus_function", "Focus Function / Requirement"),
+                    ("design_characteristic", "Design Characteristic"),
+                    ("failure_effect_fe", "Failure Effect (FE)"),
+                    ("severity_rating", "Severity (S)"),
+                    ("failure_mode_fm", "Failure Mode (FM)"),
+                    ("special_characteristic_class", "Special Char Class"),
+                    ("design_cause_fc", "Design Cause (FC)"),
+                    ("current_prevention_control", "Current Prevention Control (PC)"),
+                    ("occurrence_rating", "Occurrence (O)"),
+                    ("current_detection_control", "Current Detection Control (DC)"),
+                    ("detection_rating", "Detection (D)"),
+                    ("action_priority_ap", "Action Priority (AP)"),
+                    ("recommended_design_action", "Recommended Design Action"),
+                    ("responsible_engineer", "Responsible Engineer"),
+                    ("target_date", "Target Date"),
+                    ("action_status", "Status"),
+                ]
+            elif is_pfmea_vda:
+                sheet_title = "PFMEA"
+                col_defs = [
+                    ("process_item", "Process Item (System)"),
+                    ("process_step", "Process Step (Operation)"),
+                    ("work_element_4m", "Work Element (4M)"),
+                    ("process_function", "Process Function"),
+                    ("product_characteristic", "Product Characteristic"),
+                    ("process_characteristic", "Process Characteristic"),
+                    ("failure_effect_fe", "Failure Effect (FE)"),
+                    ("severity_rating", "Severity (S)"),
+                    ("failure_mode_fm", "Failure Mode (FM)"),
+                    ("special_characteristic_class", "Special Char Class"),
+                    ("failure_cause_fc", "Failure Cause (FC)"),
+                    ("current_prevention_control", "Current Prevention Control (PC)"),
+                    ("occurrence_rating", "Occurrence (O)"),
+                    ("current_detection_control", "Current Detection Control (DC)"),
+                    ("detection_rating", "Detection (D)"),
+                    ("action_priority_ap", "Action Priority (AP)"),
+                    ("prevention_action", "Prevention Action"),
+                    ("detection_action", "Detection Action"),
+                    ("responsible_person", "Responsible Person"),
+                    ("target_date", "Target Date"),
+                    ("status", "Status"),
+                ]
+            else:
+                sheet_title = "Body"
+                col_defs = [(k, k.replace("_", " ").title()) for k in sample_dict.keys()]
+
+            ws = wb.create_sheet(title=sheet_title)
+
+            # Soft Blue Header Fill (#ADD8E6) matching industry DFMEA/PFMEA benchmark
+            fill_header = PatternFill(start_color="FFADD8E6", end_color="FFADD8E6", fill_type="solid")
+            font_header = Font(name="Calibri", size=10, bold=True, color="FF000000")
             thin_border = Border(
-                left=Side(style="thin", color="A0A0A0"),
-                right=Side(style="thin", color="A0A0A0"),
-                top=Side(style="thin", color="A0A0A0"),
-                bottom=Side(style="thin", color="A0A0A0")
+                left=Side(style="thin", color="FF808080"),
+                right=Side(style="thin", color="FF808080"),
+                top=Side(style="thin", color="FF808080"),
+                bottom=Side(style="thin", color="FF808080")
             )
-            ws.row_dimensions[1].height = 25
-            for col_idx, (_, d_name) in enumerate(headers, start=1):
+            align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+            ws.row_dimensions[1].height = 28
+            for col_idx, (_, d_name) in enumerate(col_defs, start=1):
                 cell = ws.cell(1, col_idx, d_name)
                 cell.fill = fill_header
                 cell.font = font_header
-                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                cell.alignment = align_center
                 cell.border = thin_border
-                ws.column_dimensions[get_column_letter(col_idx)].width = max(len(d_name) + 4, 14)
+                ws.column_dimensions[get_column_letter(col_idx)].width = max(len(d_name) + 4, 16)
 
-            font_data = Font(name="Calibri", size=8)
+            font_data = Font(name="Calibri", size=9)
+            font_bold_red = Font(name="Calibri", size=9, bold=True, color="FF9C0006")
+            font_bold_yellow = Font(name="Calibri", size=9, bold=True, color="FF9C6500")
+            font_bold_green = Font(name="Calibri", size=9, bold=True, color="FF006100")
+            fill_ap_h = PatternFill(start_color="FFFFC7CE", end_color="FFFFC7CE", fill_type="solid")
+            fill_ap_m = PatternFill(start_color="FFFFEB9C", end_color="FFFFEB9C", fill_type="solid")
+            fill_ap_l = PatternFill(start_color="FFC6EFCE", end_color="FFC6EFCE", fill_type="solid")
+
             for r_idx, r_item in enumerate(rows, start=2):
                 ws.row_dimensions[r_idx].height = 22
                 r_d = r_item.to_dict() if hasattr(r_item, "to_dict") else r_item
-                for c_idx, (k, _) in enumerate(headers, start=1):
+                for c_idx, (k, _) in enumerate(col_defs, start=1):
                     val = r_d.get(k)
                     cell = ws.cell(r_idx, c_idx, val)
                     cell.font = font_data
                     cell.border = thin_border
-                    cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+                    
+                    # Centered ratings
+                    if k in ("severity_rating", "occurrence_rating", "detection_rating", "special_characteristic_class", "action_priority_ap"):
+                        cell.alignment = align_center
+                    else:
+                        cell.alignment = align_left
+
+                    # AP conditional formatting
+                    if k == "action_priority_ap":
+                        if val == "H":
+                            cell.fill = fill_ap_h
+                            cell.font = font_bold_red
+                        elif val == "M":
+                            cell.fill = fill_ap_m
+                            cell.font = font_bold_yellow
+                        elif val == "L":
+                            cell.fill = fill_ap_l
+                            cell.font = font_bold_green
+
             wb.save(abs_output_path)
             wb.close()
     except PermissionError:

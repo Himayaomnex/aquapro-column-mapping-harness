@@ -75,6 +75,8 @@ SYNONYM_MAP: Dict[str, List[str]] = {
     ],
     "occurrence_rating": [
         "cause: occurence rating", "cause: occurrence rating", "occurrence rating",
+        "preventive controls: occurence rating", "preventive controls: occurrence rating",
+        "preventive controls: occurence", "preventive controls: occurrence",
         "occurrence", "occ", "o", "occ (o) of fc", "occ (o)"
     ],
     "preventive_control": [

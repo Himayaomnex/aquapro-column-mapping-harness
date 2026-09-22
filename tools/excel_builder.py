@@ -437,14 +437,28 @@ def _build_dfmea_vda_rows(
         d = item.detection_rating or 4
         ap = calculate_action_priority(s, o, d)
 
+        # Determine 3-Level Structure Analysis
+        higher_level = (
+            item.process_segment_name
+            if item.process_segment_name and item.process_segment_name != "1"
+            else (item.operation_name or "Vehicle System / Assembly")
+        )
+        focus_elem = item.production_item_name or "Design Component"
+        lower_elem = item.process_work_element or f"{focus_elem} Assembly / Core"
+
+        # Determine 3-Level Function Analysis
+        sys_func = f"Provide reliable {higher_level} function in vehicle application"
+        focus_func = item.csr or item.product_characteristic or "Provide mechanical integrity and functional envelope"
+        design_char = item.product_characteristic or item.process_characteristic or "Maintain material properties and structural stiffness"
+
         row = {
             # Canonical spec keys (matching capabilities/dfmea_aiag_to_vda.md)
-            "higher_level_element": item.process_segment_name or "Vehicle System / Assembly",
-            "focus_element": item.production_item_name or "Design Component",
-            "lower_level_element": item.operation_name or "Component Sub-part",
-            "system_function": "Fulfill system-level durability and safety criteria",
-            "focus_function": item.product_characteristic or "Provide mechanical integrity and functional envelope",
-            "design_characteristic": item.process_characteristic or "Maintain material properties and structural stiffness",
+            "higher_level_element": higher_level,
+            "focus_element": focus_elem,
+            "lower_level_element": lower_elem,
+            "system_function": sys_func,
+            "focus_function": focus_func,
+            "design_characteristic": design_char,
             "failure_effect_fe": item.failure_effect or "Degraded vehicle performance or loss of subsystem function",
             "severity_rating": s,
             "failure_mode_fm": item.failure_mode or "Structural deformation or fatigue fracture",
@@ -455,10 +469,10 @@ def _build_dfmea_vda_rows(
             "current_detection_control": item.detective_control or "Prototype Durability Rig Testing",
             "detection_rating": d,
             "action_priority_ap": ap,
-            "recommended_design_action": "Optimize geometry / increase wall thickness" if ap == "H" else "Design verified",
+            "recommended_design_action": f"Optimize {focus_elem} geometry per thermal/stress FEA" if ap == "H" else "Design verified per standard testing",
             "responsible_engineer": (draft_fields or {}).get(f"{item.operation_number}_{idx}", {}).get("responsible_engineer") or "Design Lead",
             "target_date": (draft_fields or {}).get(f"{item.operation_number}_{idx}", {}).get("target_date") or "TBD",
-            "action_status": "In Review" if ap == "H" else "Approved",
+            "action_status": "Open" if ap == "H" else "Approved",
 
             # Legacy aliases
             "higher_level_system": item.process_segment_name or "Vehicle System / Assembly",
