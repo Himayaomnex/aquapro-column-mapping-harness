@@ -237,25 +237,33 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
         proc_segment = str(canonical_values.get("process_segment_name") or "").strip() or None
 
         # Intelligent prefix disambiguation: e.g. '81 Material allocation...'
-        for candidate_field, candidate_val in [("op_name", op_name), ("item_name", item_name)]:
+        candidates = [
+            ("op_name", op_name),
+            ("item_name", item_name),
+            ("focus_element", str(canonical_values.get("focus_element") or "").strip()),
+            ("process_step", str(canonical_values.get("process_step") or "").strip()),
+            ("raw_process_item", str(row.get("Process Item") or "").strip()),
+            ("raw_process_step", str(row.get("Process Step") or "").strip()),
+            ("raw_op_desc", str(row.get("Operation Description") or "").strip()),
+        ]
+        for candidate_field, candidate_val in candidates:
             if not candidate_val:
                 continue
             m = re.match(r"^(\d+(?:[_\-]\d+)?)[_\s]+(.*)$", candidate_val)
             if m:
                 extracted_op = m.group(1)
                 remainder = m.group(2).strip()
-                if op_num != extracted_op:
+                if not op_num or op_num != extracted_op:
                     if not proc_segment and op_num:
                         proc_segment = op_num
                     op_num = extracted_op
-                if candidate_field == "op_name":
+                if not op_name or op_name == f"Operation {op_num}" or candidate_field in ("op_name", "raw_op_desc"):
                     op_name = remainder
-                elif candidate_field == "item_name":
-                    if not op_name or op_name == f"Operation {op_num}":
+                elif remainder and candidate_field in ("focus_element", "raw_process_item", "raw_process_step"):
+                    if not op_name or op_name.strip() == remainder or op_name.startswith("Operation"):
                         op_name = remainder
-                    # Clean item_name
-                    if item_name == candidate_val and remainder:
-                        item_name = remainder
+                if candidate_field == "item_name" and item_name == candidate_val and remainder:
+                    item_name = remainder
                 break
 
         # Check if new operation declared or inherit active operation for continuation rows

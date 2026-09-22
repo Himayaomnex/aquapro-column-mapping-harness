@@ -206,8 +206,66 @@ def _build_cd6_body(ws_b: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any
                 )
 
 
+def _build_parent_control_plan_sheet(ws: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any]):
+    """Builds the authentic parent codebase 'Control Plan' sheet with 16 columns and #FFFFC5 header."""
+    col_defs = [
+        ("Production Item Name", 28, "production_item_name"),
+        ("Process Segment Name", 20, "process_segment_name"),
+        ("Operation Number", 15, "operation_number"),
+        ("Operation Name", 20, "operation_name"),
+        ("Product Characteristics", 30, "product_characteristic"),
+        ("Process Characteristics", 35, "process_characteristic"),
+        ("Special Characteristic Class", 16, "special_characteristic_class"),
+        ("Product/Process Specification/Tolerance", 32, "specification_tolerance"),
+        ("Evaluation/Measurement Technique", 28, "evaluation_measurement_technique"),
+        ("Tool Number", 15, "tool_number"),
+        ("Tool Name", 20, "tool_name"),
+        ("Gage Number", 15, "gage_number"),
+        ("Control Method", 22, "control_method"),
+        ("Sample Size", 15, "sample_size"),
+        ("Sample Frequency", 20, "sample_frequency"),
+        ("Reaction Plan", 32, "reaction_plan"),
+    ]
+
+    fill_header = PatternFill(start_color="FFFFFFC5", end_color="FFFFFFC5", fill_type="solid")
+    font_header = Font(name="Calibri", size=11, bold=True)
+    font_cell = Font(name="Calibri", size=11)
+    thin_border = Border(
+        left=Side(style="thin", color="A0A0A0"),
+        right=Side(style="thin", color="A0A0A0"),
+        top=Side(style="thin", color="A0A0A0"),
+        bottom=Side(style="thin", color="A0A0A0")
+    )
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    ws.row_dimensions[1].height = 26
+    for col_idx, (col_name, col_width, _) in enumerate(col_defs, start=1):
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = col_width
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.fill = fill_header
+        cell.font = font_header
+        cell.border = thin_border
+        cell.alignment = align_center
+
+    center_fields = {"operation_number", "special_characteristic_class", "sample_size", "sample_frequency"}
+
+    for r_idx, row_item in enumerate(rows, start=2):
+        r_dict = row_item.to_dict() if hasattr(row_item, "to_dict") else row_item
+        ws.row_dimensions[r_idx].height = 24
+        for c_idx, (_, _, field_key) in enumerate(col_defs, start=1):
+            val = r_dict.get(field_key)
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.font = font_cell
+            cell.border = thin_border
+            cell.alignment = align_center if field_key in center_fields else align_left
+
+    ws.freeze_panes = "A2"
+
+
 def _export_cd6_format(rows: List[Any], output_path: str):
-    """Exports to the exact CD6 Fr Production Item Control Plan format (Header + Body + Footer)."""
+    """Exports to the exact CD6 Fr Production Item Control Plan format (Control Plan + Body + Header + Footer)."""
     if os.path.exists(CD6_TEMPLATE):
         wb = openpyxl.load_workbook(CD6_TEMPLATE)
         # Clean up microscopic columns in Footer sheet so it doesn't look squished
@@ -218,16 +276,23 @@ def _export_cd6_format(rows: List[Any], output_path: str):
                     del ws_f.column_dimensions[col_letter]
 
         if "Control Plan" in wb.sheetnames:
-            wb.remove(wb["Control Plan"])
+            ws_cp = wb["Control Plan"]
+        else:
+            ws_cp = wb.create_sheet(title="Control Plan", index=0)
+        _build_parent_control_plan_sheet(ws_cp, rows)
 
         ws_b = wb["Body"]
         _build_cd6_body(ws_b, rows)
+        wb.active = ws_cp
     else:
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
+        ws_cp = wb.create_sheet(title="Control Plan")
+        _build_parent_control_plan_sheet(ws_cp, rows)
         ws_b = wb.create_sheet(title="Body")
         _setup_cd6_headers(ws_b)
         _build_cd6_body(ws_b, rows)
+        wb.active = ws_cp
 
     try:
         wb.save(output_path)
@@ -240,17 +305,23 @@ def _export_cd6_format(rows: List[Any], output_path: str):
 
 
 def _export_cnc_format(rows: List[Any], output_path: str, part_name: str = "CNC Operation"):
-    """Exports to the exact CNC APQP Benchmark format (Header + Body, 16 columns)."""
+    """Exports to the exact CNC APQP Benchmark format (Control Plan + Header + Body, 16 columns)."""
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
-    # 1. Header Sheet
+    # 1. Primary Control Plan Sheet (matching parent codebase 16-column format)
+    ws_cp = wb.create_sheet(title="Control Plan")
+    _build_parent_control_plan_sheet(ws_cp, rows)
+
+    # 2. Header Sheet
     ws_h = wb.create_sheet(title="Header")
     _build_cnc_header(ws_h, part_name=part_name)
 
-    # 2. Body Sheet (Single authoritative 16-column body sheet)
+    # 3. Body Sheet (APQP multi-tier header format)
     ws_b = wb.create_sheet(title="Body")
     _build_cnc_body(ws_b, rows)
+
+    wb.active = ws_cp
 
     try:
         wb.save(output_path)
@@ -513,21 +584,24 @@ def excel_exporter(
             if is_dfmea:
                 sheet_title = "DFMEA"
                 col_defs = [
-                    ("higher_level_element", "Higher Level (System)"),
-                    ("focus_element", "Focus Element (Subsystem)"),
-                    ("lower_level_element", "Lower Level (Component)"),
-                    ("system_function", "System Function"),
-                    ("focus_function", "Focus Function / Requirement"),
-                    ("design_characteristic", "Design Characteristic"),
-                    ("failure_effect_fe", "Failure Effect (FE)"),
-                    ("severity_rating", "Severity (S)"),
-                    ("failure_mode_fm", "Failure Mode (FM)"),
+                    ("higher_level_element", "1. System (Item)"),
+                    ("focus_element", "2. System Element / Interface"),
+                    ("lower_level_element", "3. Component Element (Item / Interface)"),
+                    ("system_function", "1. Function of System or Intended Output"),
+                    ("focus_function", "2. Function"),
+                    ("lower_level_function", "3. Function of Component Element or Intended Output"),
+                    ("system_requirement", "1. Requirement of System or Intended Output"),
+                    ("focus_requirement", "2. Requirement"),
+                    ("design_characteristic", "3. Requirement of Component Element or Characteristics"),
+                    ("failure_effect_fe", "1. Failure Effects (FE)"),
+                    ("severity_rating", "Sev"),
+                    ("failure_mode_fm", "2. Failure Mode (FM)"),
                     ("special_characteristic_class", "Special Char Class"),
-                    ("design_cause_fc", "Design Cause (FC)"),
-                    ("current_prevention_control", "Current Prevention Control (PC)"),
-                    ("occurrence_rating", "Occurrence (O)"),
-                    ("current_detection_control", "Current Detection Control (DC)"),
-                    ("detection_rating", "Detection (D)"),
+                    ("design_cause_fc", "3. Failure Cause (FC)"),
+                    ("current_prevention_control", "Current Prevention Control PC of (FC)"),
+                    ("occurrence_rating", "Occ"),
+                    ("current_detection_control", "Current Detection Control DC of FC or FM"),
+                    ("detection_rating", "Det"),
                     ("action_priority_ap", "Action Priority (AP)"),
                     ("recommended_design_action", "Recommended Design Action"),
                     ("responsible_engineer", "Responsible Engineer"),
@@ -537,28 +611,33 @@ def excel_exporter(
                 section_defs = [
                     ("Structure Analysis", 1, 3, "FF4472C4", "FFFFFFFF"),
                     ("Functional Analysis", 4, 6, "FFFFC000", "FF000000"),
-                    ("Failure Analysis", 7, 11, "FFF4B183", "FF000000"),
-                    ("Risk Analysis", 12, 16, "FFFF0000", "FFFFFFFF"),
-                    ("Optimization", 17, 20, "FF5B9BD5", "FFFFFFFF"),
+                    ("Requirement Analysis", 7, 9, "FF70AD47", "FFFFFFFF"),
+                    ("Failure Analysis", 10, 14, "FFF4B183", "FF000000"),
+                    ("Risk Analysis", 15, 18, "FFFF0000", "FFFFFFFF"),
+                    ("Optimization", 19, 23, "FF5B9BD5", "FFFFFFFF"),
                 ]
             elif is_pfmea_vda:
                 sheet_title = "PFMEA"
                 col_defs = [
-                    ("process_item", "Process Item (System)"),
-                    ("process_step", "Process Step (Operation)"),
-                    ("work_element_4m", "Work Element (4M)"),
-                    ("process_function", "Process Function"),
-                    ("product_characteristic", "Product Characteristic"),
-                    ("process_characteristic", "Process Characteristic"),
-                    ("failure_effect_fe", "Failure Effect (FE)"),
-                    ("severity_rating", "Severity (S)"),
-                    ("failure_mode_fm", "Failure Mode (FM)"),
+                    ("production_item_name", "Production Item Name"),
+                    ("process_segment_name", "Process Segment Name"),
+                    ("operation_number", "Operation Number"),
+                    ("operation_name", "Operation Name"),
+                    ("work_element_4m", "Four M"),
+                    ("process_item_function", "Process Item Function"),
+                    ("product_characteristic", "Product Characteristics"),
+                    ("process_characteristic", "Process Characteristics"),
+                    ("work_element_function", "work element function"),
+                    ("failure_effect_fe", "Potential Effects of Failure"),
+                    ("severity_rating", "Severity Rating"),
+                    ("failure_mode_fm", "Potential Failure Mode"),
                     ("special_characteristic_class", "Special Char Class"),
-                    ("failure_cause_fc", "Failure Cause (FC)"),
-                    ("current_prevention_control", "Current Prevention Control (PC)"),
-                    ("occurrence_rating", "Occurrence (O)"),
-                    ("current_detection_control", "Current Detection Control (DC)"),
-                    ("detection_rating", "Detection (D)"),
+                    ("failure_cause_fc", "Potential Causes of Failure"),
+                    ("occurrence_rating", "Cause Occurrence Rating"),
+                    ("current_prevention_control", "Preventive Controls: Occurrence"),
+                    ("occurrence_rating", "Preventive Controls: Rating"),
+                    ("current_detection_control", "Detective Controls"),
+                    ("detection_rating", "Detective Controls: Rating"),
                     ("action_priority_ap", "Action Priority (AP)"),
                     ("prevention_action", "Prevention Action"),
                     ("detection_action", "Detection Action"),
@@ -567,11 +646,11 @@ def excel_exporter(
                     ("status", "Status"),
                 ]
                 section_defs = [
-                    ("Structure Analysis", 1, 3, "FF4472C4", "FFFFFFFF"),
-                    ("Functional Analysis", 4, 6, "FFFFC000", "FF000000"),
-                    ("Failure Analysis", 7, 11, "FFF4B183", "FF000000"),
-                    ("Risk Analysis", 12, 16, "FFFF0000", "FFFFFFFF"),
-                    ("Optimization", 17, 21, "FF5B9BD5", "FFFFFFFF"),
+                    ("Structure Analysis", 1, 5, "FF4472C4", "FFFFFFFF"),
+                    ("Functional Analysis", 6, 9, "FFFFC000", "FF000000"),
+                    ("Failure Analysis", 10, 14, "FFF4B183", "FF000000"),
+                    ("Risk Analysis", 15, 19, "FFFF0000", "FFFFFFFF"),
+                    ("Optimization", 20, 25, "FF5B9BD5", "FFFFFFFF"),
                 ]
             else:
                 sheet_title = "Body"
@@ -628,11 +707,41 @@ def excel_exporter(
             fill_ap_m = PatternFill(start_color="FFFFEB9C", end_color="FFFFEB9C", fill_type="solid")
             fill_ap_l = PatternFill(start_color="FFC6EFCE", end_color="FFC6EFCE", fill_type="solid")
 
+            KEY_FALLBACKS = {
+                "production_item_name": ["process_item", "process_item_system", "focus_element"],
+                "process_segment_name": ["process_function", "function_of_item", "higher_level_element"],
+                "work_element_4m": ["process_work_element_4m", "work_element"],
+                "process_item_function": ["function_of_step", "process_function"],
+                "work_element_function": ["function_of_work_element"],
+                "failure_effect_fe": ["failure_effects_fe", "failure_effect"],
+                "failure_mode_fm": ["failure_mode"],
+                "failure_cause_fc": ["design_cause_fc", "failure_cause"],
+                "current_prevention_control": ["preventive_control", "preventive_controls", "design_prevention_control"],
+                "current_detection_control": ["detective_control", "detective_controls"],
+                "special_characteristic_class": ["special_characteristic"],
+                "action_priority_ap": ["action_priority", "ap"],
+                "prevention_action": ["optimization_prevention"],
+                "detection_action": ["optimization_detection"],
+                "higher_level_element": ["system_item", "process_segment_name"],
+                "focus_element": ["system_element_interface", "production_item_name"],
+                "lower_level_element": ["component_element", "process_work_element"],
+                "focus_function": ["function"],
+                "lower_level_function": ["component_function"],
+                "focus_requirement": ["requirement"],
+                "design_characteristic": ["component_requirement", "product_characteristic"],
+                "action_status": ["status"]
+            }
+
             for r_idx, r_item in enumerate(rows, start=data_start_row):
                 ws.row_dimensions[r_idx].height = 22
                 r_d = r_item.to_dict() if hasattr(r_item, "to_dict") else r_item
                 for c_idx, (k, _) in enumerate(col_defs, start=1):
                     val = r_d.get(k)
+                    if val is None:
+                        for alt_k in KEY_FALLBACKS.get(k, []):
+                            if r_d.get(alt_k) is not None:
+                                val = r_d.get(alt_k)
+                                break
                     cell = ws.cell(r_idx, c_idx, val)
                     cell.font = font_data
                     cell.border = thin_border
