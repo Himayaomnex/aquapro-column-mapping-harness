@@ -1,42 +1,52 @@
 ---
 name: control_plan_mapping
-purpose: How to derive an authentic 16-column AIAG Control Plan from an approved Process FMEA (PFMEA).
-applies_when: deriving or generating a Control Plan from an uploaded or referenced PFMEA workbook
-not_for: DFMEAs (Control Plans are exclusively manufacturing documents derived from Process FMEAs)
+purpose: The column-by-column contract for deriving a 16-column AIAG Control Plan from a Process FMEA.
+applies_when: deriving a Control Plan from a Process FMEA
+not_for: Design FMEAs; AIAG-VDA FMEA conversions
 ---
 
-# Control Plan Derivation from Process FMEA (PFMEA)
+# Control Plan Derivation from PFMEA
 
-Builds upon `source_preservation`. Governed by the AIAG APQP / Control Plan Reference Manual.
+Builds on `source_preservation`. Governed by the AIAG APQP / Control Plan Reference Manual.
 
-## The 16 Canonical Control Plan Columns
-An authentic AIAG Control Plan consists of 16 standard columns divided into three execution categories:
+## The three column policies
 
-| Column Number | Canonical Name | Execution Policy | Source / Derivation Rule |
-| :---: | :--- | :---: | :--- |
-| 1 | `production_item_name` | **CARRY** | Part name or assembly name from source PFMEA. |
-| 2 | `process_segment_name` | **CARRY** | Manufacturing segment or department from source PFMEA. **Must never be dropped or left blank if present in source.** |
-| 3 | `operation_number` | **CARRY** | Manufacturing sequence step number (e.g. `10`, `20`). |
-| 4 | `operation_name` | **CARRY** | Name of the process operation (e.g. `CNC Rough Milling`). |
-| 5 | `product_characteristic` | **CARRY** | Dimension or feature of the manufactured part (e.g. `Bore Diameter`). |
-| 6 | `process_characteristic` | **CARRY/AUTHOR** | Machine parameter controlling the feature (e.g. `Spindle Speed`). Carried if source has it; derived from cause if missing. |
-| 7 | `special_characteristic_class` | **AUTHOR** | Marked as `CC` (Critical) or `SC` (Significant) if $S \ge 8$ or designated in source; otherwise `null`. |
-| 8 | `specification_tolerance` | **ABSTAIN** | Engineering blueprint specification. Kept honest blank unless present in source. |
-| 9 | `evaluation_measurement_technique` | **AUTHOR** | Inspection gage, sensor, or method. Derived directly from source `detective_control`. |
-| 10 | `tool_number` | **ABSTAIN** | Specific machine tooling ID. Kept honest blank unless present in source. |
-| 11 | `tool_name` | **ABSTAIN** | Name of the tool. Kept honest blank unless present in source. |
-| 12 | `gage_number` | **ABSTAIN** | Specific gage inventory identifier. Kept honest blank unless present in source. |
-| 13 | `control_method` | **AUTHOR** | In-process operational control. Derived directly from source `preventive_control`. |
-| 14 | `sample_size` | **ABSTAIN** | Quality sampling plan size. Kept honest blank unless present in source. |
-| 15 | `sample_frequency` | **ABSTAIN** | Quality sampling interval. Kept honest blank unless present in source. |
-| 16 | `reaction_plan` | **AUTHOR** | Containment action if defect detected (e.g., `Segregate nonconforming parts and notify supervisor`). Derived when detective control exists. |
+Every column in a Control Plan belongs to exactly one policy:
 
-## Why Honest Abstention is Required (AIAG PPAP Audit Invariant)
-- Fabricating tool numbers, gage numbers, or sampling plans without official process engineering sign-off causes immediate rejection in an OEM PPAP audit.
-- AIAG PPAP 4th Edition standard permits blank tooling/gage columns when not yet assigned, but strictly forbids fictitious entries.
+**CARRY** — Copied verbatim from the source PFMEA. No modification.
 
-## Validation Expectations
-- `Process Segment Name` must be populated on every row where the source PFMEA provided it.
-- Row count matches source operations/characteristics.
-- Carried columns are byte-identical.
-- Zero fabricated tooling numbers, gage codes, or engineering tolerances.
+**AUTHOR** — Derived from source evidence in the same row. The value must be grounded in what the source PFMEA says about that operation and characteristic — not in general engineering knowledge.
+
+**ABSTAIN** — Left blank. These fields require data that only exists on an approved engineering drawing, calibration record, or sampling plan. Inventing them causes immediate failure in an OEM PPAP audit. A blank is correct; a fabricated value is a defect.
+
+## The 16 columns
+
+| # | Field | Policy | Derivation rule |
+|---|---|---|---|
+| 1 | `production_item_name` | CARRY | |
+| 2 | `process_segment_name` | CARRY | Must never be dropped when present in source |
+| 3 | `operation_number` | CARRY | |
+| 4 | `operation_name` | CARRY | |
+| 5 | `product_characteristic` | CARRY | |
+| 6 | `process_characteristic` | CARRY if present in source; AUTHOR from failure cause if absent | Derived from the cause of the failure — the machine parameter or process condition that drives the characteristic |
+| 7 | `special_characteristic_class` | AUTHOR | Set to `CC` when S ≥ 8 and the characteristic is safety-critical; `SC` when S ≥ 8 and customer-designated significant; null otherwise |
+| 8 | `specification_tolerance` | ABSTAIN | Requires approved engineering drawing |
+| 9 | `evaluation_measurement_technique` | AUTHOR | Derived directly from the source detection control |
+| 10 | `tool_number` | ABSTAIN | Requires official tooling register |
+| 11 | `tool_name` | ABSTAIN | Requires official tooling register |
+| 12 | `gage_number` | ABSTAIN | Requires calibration record |
+| 13 | `control_method` | AUTHOR | Derived directly from the source prevention control |
+| 14 | `sample_size` | ABSTAIN | Requires approved sampling plan |
+| 15 | `sample_frequency` | ABSTAIN | Requires approved sampling plan |
+| 16 | `reaction_plan` | AUTHOR | Derived only when column 9 (`evaluation_measurement_technique`) is non-null — states the containment action when the measurement detects a nonconformance |
+
+## Why ABSTAIN fields must remain blank
+
+AIAG PPAP 4th Edition permits blank tooling, gage, and sampling columns when those plans have not yet been assigned. It does not permit invented values. An OEM PPAP auditor cross-references these fields against physical records — a fabricated number that does not match any record causes immediate rejection. A blank is auditable; a fiction is not.
+
+## Validation
+- Row count equals source row count.
+- `process_segment_name` is populated on every row where the source provides it.
+- All CARRY cells are byte-identical to source.
+- All ABSTAIN cells are null or empty.
+- `reaction_plan` is null when `evaluation_measurement_technique` is null.

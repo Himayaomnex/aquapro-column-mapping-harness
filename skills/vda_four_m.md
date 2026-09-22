@@ -1,35 +1,38 @@
 ---
 name: vda_four_m
-purpose: How to assign the mandatory Four M (4M) work element category to each failure cause in an AIAG-VDA Process FMEA.
-applies_when: authoring or validating the "Four M" / "Work Element" column of an AIAG-VDA PFMEA
-not_for: Design FMEAs (DFMEA has no 4M column; DFMEAs classify physical and engineering design causes)
+purpose: How to classify the work element category for each failure cause in an AIAG-VDA Process FMEA.
+applies_when: authoring the work element column in an AIAG-VDA PFMEA
+not_for: Design FMEAs — DFMEA has no 4M column
 ---
 
-# Four M (4M) Classification in AIAG-VDA PFMEA
+# Four M Classification
 
-Every failure cause in an AIAG-VDA Process FMEA originates from a process work element. The AIAG-VDA standard categorizes work elements into exactly four distinct classes:
+In the AIAG-VDA Process FMEA, every failure cause originates from a process work element. That work element is classified into exactly one of four categories.
 
-## The Permitted Vocabulary — Exactly Four Values
+## The four permitted values
 
-- **Machine:**
-  - Machine wear, tooling degradation, fixture misalignment, press pressure drop, sensor drift, robot repeat error, equipment breakdown, improper machine calibration.
-- **Method:**
-  - Incorrect process parameter recipe, ambiguous work instruction, improper sequence of operations, faulty program logic, inadequate cooling cycle time, incomplete procedural guideline.
-- **Material:**
-  - Raw material variation, out-of-spec sheet thickness, contaminated oil/fluid, defective supplier subcomponent, wrong alloy grade, surface oxidation prior to assembly.
-- **Man:**
-  - Operator loading error, missed manual inspection step, lack of training/certification, fatigue, incorrect manual torque application, ergonomics-induced handling defect.
+**Man** — The cause originates from human action or inaction.
+Examples: operator loading error, missed inspection step, insufficient training, fatigue, incorrect manual torque.
 
-## The Negative Constraint — No Fifth Value
+**Machine** — The cause originates from equipment, tooling, or fixturing.
+Examples: tool wear, fixture misalignment, sensor drift, press pressure drop, calibration failure, robot positioning error.
 
-- **"Milieu" (Environment) is NOT permitted.** The AIAG-VDA standard incorporates environmental factors (temperature, humidity, dust) under `Machine` (facility controls) or `Method`. Any appearance of "Milieu" or arbitrary categories is an audit failure.
+**Material** — The cause originates from incoming material or components.
+Examples: out-of-specification sheet thickness, contaminated fluid, wrong alloy grade, defective supplier subcomponent, surface oxidation.
 
-## Decision Procedure
-1. Read the row's specific **Failure Cause (`FC`)** (not the failure mode or effect).
-2. Determine the physical root cause mechanism.
-3. Select the single dominant 4M category whose elimination prevents the cause.
-4. If ambiguous between tooling and parameters, determine whether the physical tool (`Machine`) or the setup procedure (`Method`) was primary.
+**Method** — The cause originates from the process design or work instructions.
+Examples: incorrect parameter recipe, ambiguous work instruction, wrong operation sequence, missing cooling cycle, inadequate procedure.
 
-## Validation Expectations
-- The cell must be exactly one of: `"Machine"`, `"Method"`, `"Material"`, `"Man"` (case-sensitive).
-- Null or unclassified entries are not permitted in final PFMEA VDA rows.
+## What is not permitted
+
+"Milieu" (environment) is not a valid category. Environmental factors belong under Machine (facility/equipment controls) or Method (process design). A documented defect occurred when a paraphrased copy of this vocabulary introduced "Milieu" into a delivered customer document — this rule exists to prevent that.
+
+## How to assign the category
+
+1. Read the failure **Cause** — not the mode, not the effect. The category describes where the cause comes from.
+2. Identify the dominant mechanism: is it the operator, the equipment, the incoming material, or the process design?
+3. If more than one category could apply, select the one whose elimination would most directly remove the cause.
+4. The cell must never be empty. If the cause text is ambiguous, classify from the failure mode's mechanism.
+
+## Validation
+The permitted values are: `Man`, `Machine`, `Material`, `Method` — case-sensitive, exactly as written. Any other value is a validation failure.

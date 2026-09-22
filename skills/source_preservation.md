@@ -1,38 +1,32 @@
 ---
 name: source_preservation
 purpose: The fundamental rule for handling customer source content in any automotive quality engineering document transformation.
-applies_when: any task that produces an output document from an uploaded or referenced source document (PFMEA, DFMEA, Control Plan)
-not_for: pure greenfield generation where no source document exists
+applies_when: any task that produces an output document from a source document
+not_for: pure greenfield generation with no source document
 ---
 
-# Source Preservation Invariant
+# Source Preservation
 
-The uploaded workbook is the customer's authoritative legal and engineering record. In any transformation or conversion:
+The uploaded workbook is the customer's authoritative engineering record. These rules apply without exception in every transformation:
 
-1. **Carried Content is Copied Verbatim:**
-   - Same text, same numbers, same terminology, same abbreviations, same row order.
-   - You do NOT "improve", paraphrase, summarize, or reword carried customer text.
-   - Misspellings in source headers or text (e.g., "Occurence") are preserved as-is.
+## Rules
 
-2. **Exact 1-to-1 Row-Count Equality:**
-   - One source row = exactly one output row.
-   - A row added is an invention (hallucination).
-   - A row removed is data loss (critical non-conformance).
-   - Turning a 35-row source into 106 rows is a catastrophic failure mode.
+**1. Carried content is copied verbatim.**
+Same text, same numbers, same abbreviations, same row order. Do not improve, rephrase, or correct customer content. A misspelling in the source ("Occurence") is carried as-is.
 
-3. **Only Author What the Source Cannot Supply:**
-   - Only author columns that the target standard (e.g., AIAG-VDA 7-Step or AIAG Control Plan) introduces and the source lacks.
-   - Authored values must be strictly grounded in the row's own carried context, never in generic part knowledge.
+**2. The output has exactly as many rows as the source.**
+One source row produces one output row. A row added is an invention. A row removed is data loss. The documented failure mode for this task was an agent turning a 35-row source into 106 rows — that is the defect this rule exists to prevent.
 
-4. **Preserve Customer Content Over Authoring Defaults:**
-   - When the customer file already carries content (e.g., `Process Segment Name`, `Product Characteristics`, or existing controls), carry it directly.
-   - Never overwrite customer data with default templates or blank fields.
+**3. Only author what the source cannot supply.**
+Author only the columns that the target standard introduces and the source has no equivalent for. Every authored value must be grounded in that row's own carried content.
 
-5. **Unmapped Source Columns are Explicitly Reported:**
-   - Any source column that has no target equivalent must be noted in unmapped fields for audit traceability.
-   - Never silently drop customer data or force it into an unrelated column.
+**4. Never overwrite customer data with a default.**
+If the source already provides content for a column — including `Process Segment Name`, existing controls, or classifications — carry it. Do not replace it with a generated default.
 
-## Validation Expectations
-- `row_count`: Source row count == Output row count.
-- `preservation`: Every carried cell is byte-identical to its source cell.
-- A single reworded or missing carried cell fails validation.
+**5. Unmapped source columns are reported, never dropped.**
+Any source column with no target equivalent is listed as unmapped in the audit trail. It is never silently discarded or forced into an unrelated column.
+
+## Validation
+- Row count: output row count must equal source row count.
+- Preservation: every carried cell must be byte-identical to its source cell.
+- A single reworded carried cell is a validation failure.

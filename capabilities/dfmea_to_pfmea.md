@@ -1,53 +1,40 @@
-# Capability Contract: dfmea_to_pfmea
-
-## Consumer
-Simultaneous Engineering teams, Manufacturing Launch Engineers, and APQP Quality Leads bridging Product Design FMEA outputs into manufacturing Process FMEA risk analysis (APQP Phase 2 to Phase 3 handoff).
+# DFMEA to PFMEA Risk Linkage
 
 ## Purpose
-Establish formal engineering linkage between Design and Process FMEA:
-- **Inherit Special Characteristics:** Carry Critical and Special Characteristics (`CC`/`SC`) identified in DFMEA directly into the PFMEA process spine.
-- **Translate Design Causes into Process Failure Modes:** Map design failure mechanisms into assembly line process failure modes.
-- **Mandate Error-Proofing (Poka-Yoke):** Enforce automated containment or error-proofing whenever design severity $S \ge 8$.
+Establish formal traceability between product Design FMEA (DFMEA) and manufacturing Process FMEA (PFMEA), as required by the AIAG APQP Phase 2 → Phase 3 handoff.
 
-## Applicable Methodology Skills
-- `skills/source_preservation.md` — Invariant of verbatim carry and zero hallucination.
-- `skills/dfmea_to_pfmea_linking.md` — Rules for cascading design risk into manufacturing operations.
+The output answers one question: **For each critical design characteristic in this DFMEA, what is the corresponding manufacturing process failure mode, required error-proofing, and recommended process control?**
 
-## Output Schema
+## Methodology Skills
+- `source_preservation` — Governs verbatim carry and zero hallucination.
+- `dfmea_to_pfmea_linking` — Governs the risk cascade rules, special characteristic inheritance, and Poka-Yoke mandate.
 
-```json
-[
-  {
-    "dfmea_part_name":                   "string",
-    "design_characteristic":             "string",
-    "dfmea_severity_rating":             "integer",
-    "special_characteristic_class":      "CC | SC | null",
-    "dfmea_failure_effect":              "string",
-    "dfmea_design_cause":                "string",
-    "pfmea_operation_number":            "string",
-    "pfmea_operation_name":              "string",
-    "pfmea_process_failure_mode":        "string",
-    "pfmea_process_failure_cause":       "string",
-    "error_proofing_poka_yoke":          "string | null",
-    "recommended_process_control":       "string | null",
-    "recommended_detection_method":      "string | null"
-  }
-]
-```
+## Output Contract
 
-## Field Derivation & Preservation Policy
-1. **CARRY:** DFMEA part name, design characteristic, severity rating, and failure effects are carried verbatim.
-2. **AUTHOR:**
-   - Linkage to manufacturing operations (e.g. torque station, press fit).
-   - If $S \ge 8$, error-proofing / Poka-Yoke requirement must be specified.
-3. **ABSTAIN:** Shop-floor machine serial numbers, specific fixture IDs, or unverified tooling parameters remain blank.
+Every row in the output must conform to the following schema:
 
-## Verification & Acceptance Criteria
-
-| # | Rule | Enforcement | Description |
+| # | Field | Type | Policy |
 |---|---|---|---|
-| V1 | Traceability Coverage | reject_document | Every critical DFMEA characteristic must link to at least one PFMEA operation |
-| V2 | Mandatory Error-Proofing | reject_row | For design severity $S \ge 8$, `error_proofing_poka_yoke` must be flagged |
-| V3 | Special Characteristic Preservation | reject_row | Special characteristics (CC/SC) from DFMEA must be preserved; severity cannot be downgraded |
-| V4 | Causal Traceability | reject_row | Process failure mode must logically prevent or detect the design root cause |
-| V5 | Zero Hallucination | reject_row | No invented tooling IDs or machine model numbers |
+| 1 | `dfmea_part_name` | string | CARRY — from DFMEA production item |
+| 2 | `design_characteristic` | string | CARRY — from DFMEA function or requirement |
+| 3 | `dfmea_severity_rating` | integer | CARRY — must not be downgraded |
+| 4 | `special_characteristic_class` | `CC` \| `SC` \| null | CARRY — must not be downgraded |
+| 5 | `dfmea_failure_effect` | string | CARRY |
+| 6 | `dfmea_design_cause` | string | CARRY |
+| 7 | `pfmea_operation_number` | string | AUTHOR — corresponding manufacturing operation |
+| 8 | `pfmea_operation_name` | string | AUTHOR — name of the manufacturing operation |
+| 9 | `pfmea_process_failure_mode` | string | AUTHOR — manufacturing manifestation of the design cause |
+| 10 | `pfmea_process_failure_cause` | string | AUTHOR — process root cause linked to design mechanism |
+| 11 | `error_proofing_poka_yoke` | string \| null | AUTHOR — mandatory when S ≥ 8; blank otherwise |
+| 12 | `recommended_process_control` | string \| null | AUTHOR — derived from design prevention intent |
+| 13 | `recommended_detection_method` | string \| null | AUTHOR — derived from design detection intent |
+
+## Acceptance Criteria
+
+| Rule | Enforcement | Requirement |
+|---|---|---|
+| V1 | reject_document | Every DFMEA characteristic with S ≥ 8 or CC/SC class has at least one linked PFMEA row |
+| V2 | reject_row | `error_proofing_poka_yoke` must be specified when S ≥ 8 |
+| V3 | reject_row | `special_characteristic_class` and `dfmea_severity_rating` must not be altered from source |
+| V4 | reject_row | `pfmea_process_failure_mode` must logically prevent or address the `dfmea_design_cause` |
+| V5 | reject_row | No fabricated machine IDs, tooling serial numbers, or unverified process parameters |
