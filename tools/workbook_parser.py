@@ -12,6 +12,7 @@ import openpyxl
 
 
 KEYWORD_WEIGHTS = {
+    # PFMEA & Process Control
     "operation number": 5,
     "operation description": 5,
     "potential failure mode": 5,
@@ -27,6 +28,39 @@ KEYWORD_WEIGHTS = {
     "process function": 3,
     "product": 2,
     "process": 2,
+    # Control Plan specific
+    "control plan": 5,
+    "control method": 4,
+    "evaluation/measurement technique": 5,
+    "measurement technique": 4,
+    "sample size": 4,
+    "sample frequency": 4,
+    "reaction plan": 5,
+    "special characteristic": 4,
+    # DFMEA & VDA 7-Step specific
+    "structure analysis": 5,
+    "functional analysis": 5,
+    "failure analysis": 5,
+    "risk analysis": 5,
+    "optimization": 4,
+    "system element": 4,
+    "focus element": 4,
+    "component element": 4,
+    "action priority": 4,
+    "failure mode (fm)": 5,
+    "failure cause (fc)": 5,
+    "failure effects (fe)": 5,
+    # Multilingual (Spanish, German)
+    "modo de falla": 5,
+    "causa de falla": 4,
+    "efecto de falla": 4,
+    "severidad": 3,
+    "ocurrencia": 3,
+    "deteccion": 3,
+    "plan de reaccion": 5,
+    "fehlerart": 5,
+    "fehlerursache": 4,
+    "fehlerfolge": 4,
 }
 
 

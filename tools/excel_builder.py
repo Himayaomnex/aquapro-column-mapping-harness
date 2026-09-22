@@ -306,11 +306,13 @@ def _build_control_plan_rows(
         op = str(item.operation_number or "").strip()
         cid = str(item.characteristic_id or "").strip()
         if not cid:
-            cid = str(item.product_characteristic or "").strip()
-        if not cid:
-            cid = str(item.process_characteristic or "").strip()
-        c_key = cid if cid else str(id(item))
-        group_key = (op, c_key)
+            prod_c = str(item.product_characteristic or "").strip()
+            proc_c = str(item.process_characteristic or "").strip()
+            if prod_c or proc_c:
+                cid = f"{prod_c}___{proc_c}"
+            else:
+                cid = str(id(item))
+        group_key = (op, cid)
         if group_key not in char_groups:
             char_groups[group_key] = []
         char_groups[group_key].append(item)
@@ -344,7 +346,10 @@ def _build_control_plan_rows(
                 max_occ = max(occs) if occs else item.occurrence_rating
                 spec_class = _derive_special_characteristic(max_sev, max_occ)
 
-        eval_tech = draft.get("evaluation_measurement_technique")
+        eval_tech = (
+            draft.get("evaluation_measurement_technique") or
+            next((it.evaluation_measurement_technique for it in group_items if it.evaluation_measurement_technique), None)
+        )
         if eval_tech is None:
             first_det = next((it.detective_control for it in group_items if it.detective_control), None)
             eval_tech = _clean_control_text(
@@ -352,7 +357,10 @@ def _build_control_plan_rows(
                 ["detective controls:", "detective control:", "detection:", "current process controls: detection"]
             )
 
-        ctrl_method = draft.get("control_method")
+        ctrl_method = (
+            draft.get("control_method") or
+            next((it.control_method for it in group_items if it.control_method), None)
+        )
         if ctrl_method is None:
             first_prev = next((it.preventive_control for it in group_items if it.preventive_control), None)
             ctrl_method = _clean_control_text(
@@ -360,7 +368,10 @@ def _build_control_plan_rows(
                 ["preventive controls:", "preventive control:", "prevention:", "current process controls: prevention"]
             )
 
-        reaction_plan = draft.get("reaction_plan")
+        reaction_plan = (
+            draft.get("reaction_plan") or
+            next((it.reaction_plan for it in group_items if it.reaction_plan), None)
+        )
         has_any_det = any(it.detective_control and str(it.detective_control).strip() for it in group_items)
         if reaction_plan is None:
             if has_any_det:
@@ -379,18 +390,33 @@ def _build_control_plan_rows(
             else:
                 reaction_plan = None
         else:
-            if not has_any_det:
+            if not has_any_det and not any(it.reaction_plan for it in group_items):
                 reaction_plan = None
 
         # 3. Dynamic Evidence-Grounded Extraction
-        t_name = draft.get("tool_name") or next((_extract_equipment_name(it) for it in group_items if _extract_equipment_name(it)), None)
-        t_num = draft.get("tool_number") if is_existing_baseline else None
-        g_num = draft.get("gage_number") if is_existing_baseline else None
+        t_name = (
+            draft.get("tool_name") or
+            next((it.tool_name for it in group_items if it.tool_name), None) or
+            next((_extract_equipment_name(it) for it in group_items if _extract_equipment_name(it)), None)
+        )
+        t_num = (
+            draft.get("tool_number") or
+            next((it.tool_number for it in group_items if it.tool_number), None)
+        ) if is_existing_baseline or any(it.tool_number for it in group_items) else None
 
-        spec_tol = draft.get("specification_tolerance") or next((_extract_specification_tolerance(it) for it in group_items if _extract_specification_tolerance(it)), None)
+        g_num = (
+            draft.get("gage_number") or
+            next((it.gage_number for it in group_items if it.gage_number), None)
+        ) if is_existing_baseline or any(it.gage_number for it in group_items) else None
 
-        s_size = draft.get("sample_size")
-        s_freq = draft.get("sample_frequency")
+        spec_tol = (
+            draft.get("specification_tolerance") or
+            next((it.specification_tolerance for it in group_items if it.specification_tolerance), None) or
+            next((_extract_specification_tolerance(it) for it in group_items if _extract_specification_tolerance(it)), None)
+        )
+
+        s_size = draft.get("sample_size") or next((it.sample_size for it in group_items if it.sample_size), None)
+        s_freq = draft.get("sample_frequency") or next((it.sample_frequency for it in group_items if it.sample_frequency), None)
         if not s_size or not s_freq:
             for it in group_items:
                 ext_size, ext_freq = _extract_sample_size_and_frequency(it)

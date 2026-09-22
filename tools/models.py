@@ -39,6 +39,17 @@ class MappedContextItem(BaseModel):
     detective_control: Optional[str] = None
     detection_rating: Optional[int] = None
 
+    # Control Plan & Process Specification fields
+    specification_tolerance: Optional[str] = None
+    evaluation_measurement_technique: Optional[str] = None
+    control_method: Optional[str] = None
+    sample_size: Optional[str] = None
+    sample_frequency: Optional[str] = None
+    reaction_plan: Optional[str] = None
+    tool_number: Optional[str] = None
+    tool_name: Optional[str] = None
+    gage_number: Optional[str] = None
+
     # Source traceability
     source_sheet: str = "Sheet1"
     source_row: int = 0

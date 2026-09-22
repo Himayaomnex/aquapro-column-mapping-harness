@@ -183,7 +183,13 @@ def _validate_control_plan(
             combined_source = " ".join([
                 str(getattr(item, f, "") or "")
                 for item in matching_items
-                for f in ["preventive_control", "detective_control", "failure_cause", "failure_mode", "product_characteristic", "process_characteristic", "operation_name", "process_work_element"]
+                for f in [
+                    "preventive_control", "detective_control", "failure_cause", "failure_mode",
+                    "product_characteristic", "process_characteristic", "operation_name",
+                    "process_work_element", "specification_tolerance", "evaluation_measurement_technique",
+                    "control_method", "sample_size", "sample_frequency", "reaction_plan",
+                    "tool_number", "tool_name", "gage_number"
+                ]
             ]).lower()
 
             for col in ABSTAIN_COLUMNS:
@@ -195,14 +201,18 @@ def _validate_control_plan(
 
                     # Generic tolerance/standard indicators
                     if not is_grounded and col == "specification_tolerance" and (
-                        any(k in val_str for k in ["wi-", "pwi", "swi", "sop", "std", "form-", "iso", "astm", "din", "per assigned", "+/-", "±"])
+                        any(k in val_str for k in ["wi-", "pwi", "swi", "sop", "std", "form-", "iso", "astm", "din", "per assigned", "+/-", "±", "cleanliness", "gauss", "visual", "parameter", "free of"])
                         or any(char.isdigit() for char in val_str)
                     ):
                         is_grounded = True
 
                     # Generic sample rate indicators
                     if not is_grounded and col in ("sample_size", "sample_frequency") and any(
-                        k in val_str for k in ["piece", "roll", "order", "stack", "shift", "lot", "batch", "part", "box", "%", "every", "each", "per", "first", "1x"]
+                        k in val_str for k in [
+                            "piece", "roll", "order", "stack", "shift", "lot", "batch", "part",
+                            "box", "%", "every", "each", "per", "first", "1x", "continuous",
+                            "hourly", "daily", "weekly", "monthly", "sample"
+                        ]
                     ):
                         is_grounded = True
 
