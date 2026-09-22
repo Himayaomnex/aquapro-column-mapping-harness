@@ -114,10 +114,13 @@ class TestUnifiedHarnessE2E(unittest.TestCase):
         # Check the generated Excel file
         wb = openpyxl.load_workbook(self.output_path)
         ws = wb["Body"] if "Body" in wb.sheetnames else wb["Control Plan"]
-        # Row 3 is header (16 columns)
+        # 16 columns matching AIAG specification
         self.assertEqual(ws.max_column, 16)
-        # Rows 4, 5, 6 are data rows
-        self.assertGreaterEqual(ws.max_row, 6)
+        # Data row count check (Body has 3 header rows, Control Plan has 1 header row)
+        if "Body" in wb.sheetnames:
+            self.assertGreaterEqual(ws.max_row, 6)
+        else:
+            self.assertGreaterEqual(ws.max_row, 4)
         wb.close()
 
 

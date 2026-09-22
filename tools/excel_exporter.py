@@ -249,6 +249,25 @@ def _build_parent_control_plan_sheet(ws: openpyxl.worksheet.worksheet.Worksheet,
         cell.border = thin_border
         cell.alignment = align_center
 
+    CP_FALLBACKS = {
+        "production_item_name": ["process_item", "system_item", "item_name"],
+        "process_segment_name": ["process_step", "process_function", "higher_level_element"],
+        "operation_number": ["op_no", "operation_no", "op_num", "op#"],
+        "operation_name": ["process_description", "operation_description", "op_name"],
+        "product_characteristic": ["product_characteristics", "design_characteristic"],
+        "process_characteristic": ["process_characteristics"],
+        "special_characteristic_class": ["special_characteristic", "special_characteristics", "class", "char_class", "sc_class"],
+        "specification_tolerance": ["product_process_specification_tolerance", "spec_tolerance", "specification", "tolerance"],
+        "evaluation_measurement_technique": ["evaluation_technique", "measurement_technique", "eval_technique"],
+        "tool_number": ["tool_no", "machine_no"],
+        "tool_name": ["tool_device", "machine_name"],
+        "gage_number": ["gage_no", "gauge_number", "gauge_no"],
+        "control_method": ["control_methods", "current_control_method"],
+        "sample_size": ["size"],
+        "sample_frequency": ["frequency"],
+        "reaction_plan": ["reaction_plans", "corrective_action"]
+    }
+
     center_fields = {"operation_number", "special_characteristic_class", "sample_size", "sample_frequency"}
 
     for r_idx, row_item in enumerate(rows, start=2):
@@ -256,6 +275,12 @@ def _build_parent_control_plan_sheet(ws: openpyxl.worksheet.worksheet.Worksheet,
         ws.row_dimensions[r_idx].height = 24
         for c_idx, (_, _, field_key) in enumerate(col_defs, start=1):
             val = r_dict.get(field_key)
+            if val is None or str(val).strip() == "":
+                for alt_k in CP_FALLBACKS.get(field_key, []):
+                    alt_val = r_dict.get(alt_k)
+                    if alt_val is not None and str(alt_val).strip() != "":
+                        val = alt_val
+                        break
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
             cell.font = font_cell
             cell.border = thin_border
@@ -264,35 +289,13 @@ def _build_parent_control_plan_sheet(ws: openpyxl.worksheet.worksheet.Worksheet,
     ws.freeze_panes = "A2"
 
 
-def _export_cd6_format(rows: List[Any], output_path: str):
-    """Exports to the exact CD6 Fr Production Item Control Plan format (Control Plan + Body + Header + Footer)."""
-    if os.path.exists(CD6_TEMPLATE):
-        wb = openpyxl.load_workbook(CD6_TEMPLATE)
-        # Clean up microscopic columns in Footer sheet so it doesn't look squished
-        if "Footer" in wb.sheetnames:
-            ws_f = wb["Footer"]
-            for col_letter in list(ws_f.column_dimensions.keys()):
-                if len(col_letter) > 1 or col_letter > "K":
-                    del ws_f.column_dimensions[col_letter]
-
-        if "Control Plan" in wb.sheetnames:
-            ws_cp = wb["Control Plan"]
-        else:
-            ws_cp = wb.create_sheet(title="Control Plan", index=0)
-        _build_parent_control_plan_sheet(ws_cp, rows)
-
-        ws_b = wb["Body"]
-        _build_cd6_body(ws_b, rows)
-        wb.active = ws_cp
-    else:
-        wb = openpyxl.Workbook()
-        wb.remove(wb.active)
-        ws_cp = wb.create_sheet(title="Control Plan")
-        _build_parent_control_plan_sheet(ws_cp, rows)
-        ws_b = wb.create_sheet(title="Body")
-        _setup_cd6_headers(ws_b)
-        _build_cd6_body(ws_b, rows)
-        wb.active = ws_cp
+def _export_parent_control_plan_format(rows: List[Any], output_path: str):
+    """Exports to the authentic parent codebase single-sheet 'Control Plan' format (16 columns, #FFFFC5 header)."""
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    ws_cp = wb.create_sheet(title="Control Plan")
+    _build_parent_control_plan_sheet(ws_cp, rows)
+    wb.active = ws_cp
 
     try:
         wb.save(output_path)
@@ -304,24 +307,71 @@ def _export_cd6_format(rows: List[Any], output_path: str):
     wb.close()
 
 
-def _export_cnc_format(rows: List[Any], output_path: str, part_name: str = "CNC Operation"):
-    """Exports to the exact CNC APQP Benchmark format (Control Plan + Header + Body, 16 columns)."""
+def _export_cd6_format(rows: List[Any], output_path: str, include_control_plan_sheet: bool = False):
+    """Exports to the authentic CD6 Fr Production Item Control Plan format (Header + Body + Footer)."""
+    if os.path.exists(CD6_TEMPLATE):
+        wb = openpyxl.load_workbook(CD6_TEMPLATE)
+        # Clean up microscopic columns in Footer sheet so it doesn't look squished
+        if "Footer" in wb.sheetnames:
+            ws_f = wb["Footer"]
+            for col_letter in list(ws_f.column_dimensions.keys()):
+                if len(col_letter) > 1 or col_letter > "K":
+                    del ws_f.column_dimensions[col_letter]
+
+        if include_control_plan_sheet:
+            if "Control Plan" in wb.sheetnames:
+                ws_cp = wb["Control Plan"]
+            else:
+                ws_cp = wb.create_sheet(title="Control Plan", index=0)
+            _build_parent_control_plan_sheet(ws_cp, rows)
+            wb.active = ws_cp
+        else:
+            if "Control Plan" in wb.sheetnames:
+                del wb["Control Plan"]
+            if "Body" in wb.sheetnames:
+                wb.active = wb["Body"]
+
+        ws_b = wb["Body"]
+        _build_cd6_body(ws_b, rows)
+    else:
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        if include_control_plan_sheet:
+            ws_cp = wb.create_sheet(title="Control Plan")
+            _build_parent_control_plan_sheet(ws_cp, rows)
+        ws_b = wb.create_sheet(title="Body")
+        _setup_cd6_headers(ws_b)
+        _build_cd6_body(ws_b, rows)
+        wb.active = ws_b
+
+    try:
+        wb.save(output_path)
+    except PermissionError:
+        base, ext = os.path.splitext(output_path)
+        alt_path = f"{base}_new{ext}"
+        print(f"[Excel Exporter Warning] '{output_path}' is open in Excel. Saved to '{alt_path}' instead.")
+        wb.save(alt_path)
+    wb.close()
+
+
+def _export_cnc_format(rows: List[Any], output_path: str, part_name: str = "CNC Operation", include_control_plan_sheet: bool = False):
+    """Exports to the authentic CNC APQP Benchmark format (Header + Body, 16 columns)."""
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
-    # 1. Primary Control Plan Sheet (matching parent codebase 16-column format)
-    ws_cp = wb.create_sheet(title="Control Plan")
-    _build_parent_control_plan_sheet(ws_cp, rows)
+    if include_control_plan_sheet:
+        ws_cp = wb.create_sheet(title="Control Plan")
+        _build_parent_control_plan_sheet(ws_cp, rows)
 
-    # 2. Header Sheet
+    # 1. Header Sheet
     ws_h = wb.create_sheet(title="Header")
     _build_cnc_header(ws_h, part_name=part_name)
 
-    # 3. Body Sheet (APQP multi-tier header format)
+    # 2. Body Sheet (APQP multi-tier header format)
     ws_b = wb.create_sheet(title="Body")
     _build_cnc_body(ws_b, rows)
 
-    wb.active = ws_cp
+    wb.active = ws_b
 
     try:
         wb.save(output_path)
@@ -525,11 +575,15 @@ def excel_exporter(
     rows: List[Any],
     output_path: str,
     execution_log: Optional[ExecutionLog] = None,
-    document_title: str = "Quality Engineering Document"
+    document_title: str = "Quality Engineering Document",
+    layout_mode: Optional[str] = None
 ) -> str:
     """
-    Exports rows to professional Excel file matching official APQP benchmarks.
-    Detects dataset type (CD6 Production vs CNC Benchmark) and applies the authentic template.
+    Exports rows to professional Excel file matching official APQP benchmarks or parent codebase standard.
+    Layout modes:
+      - 'standard' (default): Single sheet 'Control Plan' matching parent codebase production documents.
+      - 'apqp': OEM APQP benchmark matching 'Header' + 'Body' (and 'Footer' for CD6).
+      - 'all': Multi-tab bundle containing both 'Control Plan' and APQP benchmark tabs.
     """
     output_dir = os.path.dirname(os.path.abspath(output_path))
     if output_dir and not os.path.exists(output_dir):
@@ -560,19 +614,40 @@ def excel_exporter(
 
     try:
         if is_control_plan:
-            if is_cd6 and os.path.exists(CD6_TEMPLATE):
+            part_name = "Production Item"
+            base_file = os.path.basename(abs_output_path).replace("_Control_Plan.xlsx", "").replace("_Control_Plan", "").replace(".xlsx", "").replace("_", " ").strip()
+            if isinstance(sample_item, ControlPlanRow) and sample_item.production_item_name and sample_item.production_item_name != "Production Item":
+                part_name = sample_item.production_item_name
+            elif isinstance(sample_dict, dict) and sample_dict.get("production_item_name") and sample_dict.get("production_item_name") != "Production Item":
+                part_name = str(sample_dict.get("production_item_name"))
+            elif base_file and base_file.lower() not in ("control plan", "output", "test output"):
+                part_name = base_file
+
+            mode = (layout_mode or "").lower().strip()
+
+            if mode in ("all", "dual", "bundle"):
+                if is_cd6 and os.path.exists(CD6_TEMPLATE):
+                    print("[Excel Exporter] Exporting CD6 Multi-Tab Bundle (Control Plan + Header + Body + Footer)...")
+                    _export_cd6_format(rows, abs_output_path, include_control_plan_sheet=True)
+                else:
+                    print("[Excel Exporter] Exporting CNC Multi-Tab Bundle (Control Plan + Header + Body)...")
+                    _export_cnc_format(rows, abs_output_path, part_name=part_name, include_control_plan_sheet=True)
+            elif mode in ("apqp", "benchmark", "header_body") or (
+                not mode and ("benchmark" in abs_output_path.lower() or "apqp" in abs_output_path.lower())
+            ):
+                if is_cd6 and os.path.exists(CD6_TEMPLATE):
+                    print("[Excel Exporter] Applying CD6 APQP Benchmark Format (Header + Body + Footer)...")
+                    _export_cd6_format(rows, abs_output_path, include_control_plan_sheet=False)
+                else:
+                    print("[Excel Exporter] Applying CNC APQP Benchmark Format (Header + Body)...")
+                    _export_cnc_format(rows, abs_output_path, part_name=part_name, include_control_plan_sheet=False)
+            elif not mode and is_cd6 and os.path.exists(CD6_TEMPLATE) and "cd6" in abs_output_path.lower():
                 print("[Excel Exporter] Applying CD6 Production Benchmark Format (Header + Body + Footer)...")
-                _export_cd6_format(rows, abs_output_path)
+                _export_cd6_format(rows, abs_output_path, include_control_plan_sheet=False)
             else:
-                part_name = "Production Item"
-                base_file = os.path.basename(abs_output_path).replace("_Control_Plan.xlsx", "").replace("_Control_Plan", "").replace(".xlsx", "").replace("_", " ").strip()
-                if isinstance(sample_item, ControlPlanRow) and sample_item.production_item_name and sample_item.production_item_name != "Production Item":
-                    part_name = sample_item.production_item_name
-                elif isinstance(sample_dict, dict) and sample_dict.get("production_item_name") and sample_dict.get("production_item_name") != "Production Item":
-                    part_name = str(sample_dict.get("production_item_name"))
-                elif base_file and base_file.lower() not in ("control plan", "output", "test output"):
-                    part_name = base_file
-                _export_cnc_format(rows, abs_output_path, part_name=part_name)
+                # Default standard production export: single sheet 'Control Plan' matching parent codebase
+                print("[Excel Exporter] Applying Standard Production Format (Single Sheet: 'Control Plan')...")
+                _export_parent_control_plan_format(rows, abs_output_path)
         else:
             # Multi-capability professional VDA 7-Step & DFMEA format
             wb = openpyxl.Workbook()

@@ -56,6 +56,7 @@ class AgentState(TypedDict):
     file_path: Optional[str]
     production_item_name: Optional[str]
     output_path: str
+    layout_mode: Optional[str]
     capability_id: Optional[str]
     plan_history: List[Dict[str, Any]]
     observations: List[Dict[str, Any]]
@@ -866,7 +867,7 @@ def export_node(state: AgentState) -> Dict[str, Any]:
         output_file=os.path.abspath(state["output_path"])
     )
 
-    excel_exporter(state["built_rows"], state["output_path"], execution_log=log)
+    excel_exporter(state["built_rows"], state["output_path"], execution_log=log, layout_mode=state.get("layout_mode"))
 
     print(f"\n==================== Validated Output Preview ({cap_id}) ====================")
     print(f"{'Op #':<6} | {'Operation Description':<25} | {'Cls':<4} | {'Control Method':<26} | {'Reaction Plan':<24}")
@@ -938,7 +939,7 @@ def degrade_node(state: AgentState) -> Dict[str, Any]:
         output_file=os.path.abspath(state["output_path"])
     )
 
-    excel_exporter(passing_rows, state["output_path"], execution_log=log)
+    excel_exporter(passing_rows, state["output_path"], execution_log=log, layout_mode=state.get("layout_mode"))
     return {"status": "DEGRADED"}
 
 
@@ -1028,7 +1029,8 @@ class UnifiedHarness:
         file_path: Optional[str] = None,
         production_item_name: Optional[str] = None,
         output_path: Optional[str] = None,
-        capability: Optional[str] = None
+        capability: Optional[str] = None,
+        layout_mode: Optional[str] = None
     ) -> ExecutionLog:
         if capability:
             self.capability_id = capability
@@ -1059,6 +1061,7 @@ class UnifiedHarness:
             "file_path": file_path,
             "production_item_name": production_item_name,
             "output_path": output_path,
+            "layout_mode": layout_mode,
             "capability_id": self.capability_id,
             "plan_history": [],
             "observations": [],
@@ -1135,6 +1138,8 @@ def main():
     parser.add_argument("--item", "-i", type=str, help="Production item name for RAG (Path B)")
     parser.add_argument("--output", "-o", type=str, default="output/Control_Plan.xlsx", help="Output path for .xlsx")
     parser.add_argument("--capability", "-c", type=str, default=None, help="Capability ID")
+    parser.add_argument("--layout", "-l", type=str, default=None, choices=["standard", "apqp", "all"],
+                        help="Excel output layout: 'standard' (single sheet 'Control Plan', default), 'apqp' ('Header' + 'Body'), or 'all'")
 
     args = parser.parse_args()
 
@@ -1197,7 +1202,8 @@ def main():
         task=args.task or f"Execute conversion under capability {cap}",
         file_path=args.file,
         production_item_name=item_name,
-        output_path=output_path
+        output_path=output_path,
+        layout_mode=args.layout
     )
 
 
