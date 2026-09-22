@@ -419,7 +419,7 @@ def _build_cnc_body(ws: openpyxl.worksheet.worksheet.Worksheet, rows: List[Any])
             op_name if is_first_of_op else None,
             r_dict.get("tool_number"),
             r_dict.get("tool_name"),
-            None,
+            r_dict.get("characteristic_id") or (str(idx) if is_first_of_op else None),
             r_dict.get("process_characteristic"),
             r_dict.get("product_characteristic"),
             r_dict.get("special_characteristic_class"),
@@ -471,10 +471,19 @@ def excel_exporter(
     )
 
     # Detect dataset / template match
+    has_apqp_char_ids = any(
+        bool(getattr(r, "characteristic_id", None) or (isinstance(r, dict) and r.get("characteristic_id")))
+        for r in rows
+    )
+    has_cd6_ops = any(
+        str(getattr(r, "operation_number", "") if hasattr(r, "operation_number") else r.get("operation_number", ""))
+        in ("819", "820", "840", "845", "855", "955")
+        for r in rows[:10]
+    )
     is_cd6 = "cd6" in abs_output_path.lower() or any(
         "cd6" in str(getattr(r, "production_item_name", "")).lower() or
         "cd6" in str(getattr(r, "operation_name", "")).lower() for r in rows[:10]
-    )
+    ) or has_apqp_char_ids or has_cd6_ops
 
     try:
         if is_control_plan:
