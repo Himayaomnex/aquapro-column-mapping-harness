@@ -273,8 +273,22 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
                 canonical_values.get("failure_cause"),
                 canonical_values.get("preventive_control"),
                 canonical_values.get("detective_control"),
+                canonical_values.get("function_name"),
+                canonical_values.get("focus_element"),
             ])
             if has_row_data and active_op_num:
+                op_num = active_op_num
+                op_name = active_op_name
+                proc_segment = active_proc_segment
+                item_name = active_item_name
+            elif has_row_data:
+                # In DFMEAs or documents without explicit manufacturing operation numbers,
+                # use function_name, focus_element, or item_name as the functional element
+                func_val = canonical_values.get("function_name") or canonical_values.get("focus_element")
+                active_op_name = str(func_val or item_name or "Design Function").strip()
+                active_op_num = "1"
+                active_proc_segment = proc_segment or "1"
+                active_item_name = item_name or "Design Item"
                 op_num = active_op_num
                 op_name = active_op_name
                 proc_segment = active_proc_segment
