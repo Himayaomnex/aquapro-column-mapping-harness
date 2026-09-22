@@ -421,7 +421,7 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
     print(f"\n" + "-" * 85)
     print(f"  [LangGraph: compose_node] Authoring Document Rows under Capability: '{cap_id}'")
     print("-" * 85)
-    print(f"  Authoring Policy: CARRY verbatim | AUTHOR AP & Special Chars | ABSTAIN blanking")
+
     cap_contract = _load_capability_contract(cap_id)
     active_skill = _load_skill_for_capability(cap_id)
     prompt = COMPOSE_TEMPLATE.render(
@@ -824,15 +824,14 @@ def export_node(state: AgentState) -> Dict[str, Any]:
 
         # Print audit dashboard
         tokens_used = 60000 - state.get("budget_tokens_remaining", 60000)
-        source_desc = f"Scenario 2 (RAG: '{state.get('production_item_name') or 'Knowledge Base'}')"
+        source_desc = state.get('production_item_name') or 'Knowledge Base'
         print(f"\n===================================================================================")
         print(f"                            EXECUTION METRICS & AUDIT")
         print(f"===================================================================================")
         print(f"Capability:          ad_hoc")
         print(f"Execution Status:    COMPLETE (0 Violations)")
-        print(f"Source Mode:         {source_desc}")
-        print(f"Tokens Consumed:     ~{tokens_used:,} tokens (Remaining: {state.get('budget_tokens_remaining', 0):,})")
-        print(f"Tool Calls Made:     {state.get('tool_calls_used', 0)} / 8 allocated")
+        print(f"Input Source:        {source_desc}")
+        print(f"Tool Calls Made:     {state.get('tool_calls_used', 0)}")
         print(f"Agent Tool Calls & Observations:")
         for idx, obs in enumerate(state.get("observations", []), start=1):
             tname = obs.get("tool", "unknown")
@@ -887,7 +886,7 @@ def export_node(state: AgentState) -> Dict[str, Any]:
 
     # 2. Executive Metrics & Audit Dashboard (Tokens, Observations, Traceability)
     tokens_used = 60000 - state.get("budget_tokens_remaining", 60000)
-    source_desc = f"Scenario 1 (File: '{state.get('file_path')}')" if state.get("file_path") else f"Scenario 2 (RAG: '{state.get('production_item_name')}')"
+    source_desc = state.get("file_path") or state.get("production_item_name") or "Knowledge Base"
     ops_list = state["mapped_context"].source_operations if state.get("mapped_context") else []
 
     print(f"\n===================================================================================")
@@ -895,11 +894,10 @@ def export_node(state: AgentState) -> Dict[str, Any]:
     print(f"===================================================================================")
     print(f"Capability:          {cap_id}")
     print(f"Execution Status:    COMPLETE (0 Violations)")
-    print(f"Source Mode:         {source_desc}")
+    print(f"Input Source:        {source_desc}")
     print(f"Operations Mapped:   {ops_list} (100% Coverage)")
     print(f"Generated Output:    {len(state['built_rows'])} validated rows")
-    print(f"Tokens Consumed:     ~{tokens_used:,} tokens (Remaining: {state.get('budget_tokens_remaining', 0):,})")
-    print(f"Tool Calls Made:     {state.get('tool_calls_used', 0)} / 8 allocated")
+    print(f"Tool Calls Made:     {state.get('tool_calls_used', 0)}")
     print(f"-----------------------------------------------------------------------------------")
     print(f"Agent Tool Calls & Observations:")
     for idx, obs in enumerate(state.get("observations", []), start=1):
@@ -1051,13 +1049,10 @@ class UnifiedHarness:
         print("=" * 85)
         print(f"  Capability Contract: {self.capability_id}")
         if file_path:
-            print(f"  Execution Mode:      Scenario 1 (Document Upload)")
-            print(f"  Source File:         {file_path}")
+            print(f"  Input Source:        {file_path}")
         else:
-            print(f"  Execution Mode:      Scenario 2 (RAG Search / Analytical Q&A)")
-            print(f"  Target Task/Item:    {task or production_item_name}")
+            print(f"  Input Source:        {task or production_item_name or 'Knowledge Base'}")
         print(f"  Target Output Path:  {output_path}")
-        print(f"  Allocated Budget:    60,000 tokens | 8 tool calls | 6 max planning turns")
         print("=" * 85)
 
         initial_state: AgentState = {
