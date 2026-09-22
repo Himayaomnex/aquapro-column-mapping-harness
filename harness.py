@@ -127,7 +127,6 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     print(f"  Task:             {state['task']}")
     print(f"  Active Evidence:  {len(state.get('raw_rows', []))} raw rows | "
           f"{len(state['mapped_context'].items) if state.get('mapped_context') else 0} mapped canonical items")
-    print(f"  Budget Remaining: {state['budget_tokens_remaining']} tokens | {state['budget_tool_calls_remaining']} tool calls")
 
     # Guard against excessive plan turns
     if turn_num >= 6:
