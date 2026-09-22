@@ -1,45 +1,28 @@
-# Capability: pfmea_aiag_to_vda
+# Capability Contract: pfmea_aiag_to_vda
 
 ## Consumer
-
-Manufacturing Quality Engineers, APQP Program Managers, and Tier-1 Automotive Suppliers transitioning legacy AIAG 4th Edition PFMEAs to the AIAG-VDA 1st Edition 7-Step Harmonized standard.
+Manufacturing Process Quality Engineers, APQP Program Managers, and Automotive Tier-1 Suppliers transitioning legacy AIAG 4th Edition PFMEAs to the harmonized AIAG-VDA 1st Edition standard.
 
 ## Purpose
+Convert a legacy AIAG 4th Edition PFMEA into a fully compliant AIAG-VDA 1st Edition 7-Step PFMEA document.
+Core question answered: **Given this legacy PFMEA, how is it correctly restructured into the 7-step harmonized standard — reordering the failure chain, classifying work elements into 4M, and replacing obsolete RPN with Action Priority (AP)?**
 
-Produce a fully compliant AIAG-VDA 1st Edition 7-Step PFMEA document from legacy AIAG 4th Edition source evidence.
-Answer: **given this legacy PFMEA, how is it correctly restructured into the 7-step harmonized standard — with 4M work elements, function nets, failure chains, and Action Priority (AP) replacing obsolete RPN?**
+## Applicable Methodology Skills
+- `skills/source_preservation.md` — Invariant of verbatim carry, 1-to-1 row preservation, and zero hallucination.
+- `skills/vda_framework.md` — 7-Step harmonized structure, reordered failure chain, and section banding.
+- `skills/vda_four_m.md` — Strict 4-value vocabulary (`Machine`, `Method`, `Material`, `Man`) derived from failure cause.
+- `skills/pfmea_vda_mapping.md` — AIAG 4th Edition PFMEA to AIAG-VDA 7-Step mapping rules.
 
-The 7-Step Structure:
-- **Step 1 (Planning & Preparation):** Scope definition, boundary identification.
-- **Step 2 (Structure Analysis):** Process Item, Process Step, Process Work Element (4M: Machine, Method, Material, Man).
-- **Step 3 (Function Analysis):** Functions and characteristics for each structure level.
-- **Step 4 (Failure Analysis):** 3-level failure chain linking Failure Effects (FE), Failure Modes (FM), and Failure Causes (FC).
-- **Step 5 (Risk Analysis):** Prevention Controls, Severity (S), Occurrence (O), Detection Controls, Detection (D), Action Priority (AP: High, Medium, Low).
-- **Step 6 (Optimization):** Preventive/Detective recommendations, responsible person, target completion date, status.
-- **Step 7 (Results Documentation):** Audit traceability and executive risk summary.
+## The 7-Step AIAG-VDA Structure
+1. **Step 1: Planning & Preparation** (Scope definition, process boundaries).
+2. **Step 2: Structure Analysis** (Process Item $\to$ Process Step $\to$ Process Work Element [4M]).
+3. **Step 3: Function Analysis** (Functions of the item, process step, and work element).
+4. **Step 4: Failure Analysis** (Failure Effect [FE] $\to$ Failure Mode [FM] $\to$ Failure Cause [FC]).
+5. **Step 5: Risk Analysis** (Current Prevention & Detection Controls, S, O, D ratings, and Action Priority [AP]).
+6. **Step 6: Optimization** (Recommended preventive/detective actions, ownership, target date, and status).
+7. **Step 7: Results Documentation** (Audit traceability and executive risk reporting).
 
-## Inputs (Strictly 2 Scenarios)
-
-The agent picks exactly one path based on user input:
-
-- **Scenario 1 — Document Provided (File upload):** `file_path` — uploaded legacy AIAG 4th Edition `.xlsx` workbook.
-- **Scenario 2 — No Document Provided (RAG):** `production_item_name` — user specifies a manufacturing item/part; queried from historical PFMEA vector store via RAG.
-
-## Tool hints
-
-Pick the retrieval skill matching the input scenario, then assemble and validate:
-
-- **Scenario 1:** `parse_pfmea_workbook(file_path)` — parses uploaded `.xlsx`, maps headers to canonical concepts.
-- **Scenario 2:** `retrieve_from_rag(production_item_name)` — queries historical records via RAG.
-
-After retrieval: `excel_builder(mapped_context, draft_fields, document_type="pfmea_aiag_to_vda")` to assemble rows, then `validator`, then `excel_exporter`.
-`excel_exporter` must never run before `validator` returns an empty violation list.
-
-## Default budget
-
-40,000 tokens · 5 tool calls
-
-## Output schema
+## 20-Column Canonical Output Schema
 
 ```json
 [
@@ -69,21 +52,28 @@ After retrieval: `excel_builder(mapped_context, draft_fields, document_type="pfm
 ]
 ```
 
-## Abstention
+## Field Derivation & Preservation Policy
 
-Fields that **must remain blank** when not found in source evidence:
-- `responsible_person`, `target_completion_date`, `status` — never invent personnel or project schedules.
-- Post-action S/O/D ratings — never predict future ratings without verified physical test data.
-- Optimization actions (`prevention_action`, `detection_action`) — if AP is Low (L), optimization is optional; do not author ungrounded actions.
-- `special_characteristic_class` — must remain `null` if $S < 8$ and source has no explicit special designation.
+1. **CARRY (Source Preservation):**
+   - Core failure chain: `Failure Effect (FE)`, `Severity Rating (S)`, `Failure Mode (FM)`, `Failure Cause (FC)`, `Prevention Control`, `Occurrence Rating (O)`, `Detection Control`, `Detection Rating (D)` are copied verbatim.
+   - Reordering rule: `Failure Effect` and `Severity` precede `Failure Mode`.
+   - `product_characteristic` and `process_characteristic` are carried directly.
 
-## Verification rules
+2. **AUTHOR (Grounded Quality Engineering Fields):**
+   - `work_element_4m`: Categorized strictly into `Machine`, `Method`, `Material`, or `Man` based on the root cause mechanism. "Milieu" is strictly forbidden.
+   - `process_function`: Derived from operation name and characteristics, consistent across all rows of the operation.
+   - `action_priority_ap`: Computed deterministically from $S \times O \times D$ using the AIAG-VDA Action Priority table (`H`, `M`, `L`).
 
-| # | Rule | On fail | Description |
+3. **ABSTAIN (Honest Blanks):**
+   - Optimization fields (`responsible_person`, `target_completion_date`, `status`, post-action ratings) remain blank unless physical test data or signoff exists in source.
+
+## Verification & Acceptance Criteria
+
+| # | Rule | Enforcement | Description |
 |---|---|---|---|
-| V1 | Schema Completeness | reject_document | Every row contains all mandatory AIAG-VDA 7-Step keys |
-| V2 | Operation Coverage | reject_document | Every process operation from source is represented |
-| V3 | Action Priority Validity | reject_row | Action Priority must be strictly 'H', 'M', or 'L' matching the standard AIAG-VDA table |
-| V4 | 4M Categorization | reject_row | `work_element_4m` must be categorized into Machine, Method, Material, or Man |
-| V5 | Special Characteristic Class | reject_row | Rows with $S \ge 8$ must be evaluated for 'CC' or 'SC' designation |
-| V6 | Honest Abstention | reject_row | No fabricated names, dates, or post-action ratings |\n
+| V1 | Schema Completeness | reject_document | Every row contains all 20 canonical AIAG-VDA keys |
+| V2 | Exact Row Count Equality | reject_document | 100% row preservation: exactly 1 source row $\to$ 1 output row |
+| V3 | Action Priority Validity | reject_row | Action Priority must strictly be 'H', 'M', or 'L' based on AIAG-VDA rubric |
+| V4 | Strict 4M Vocabulary | reject_row | `work_element_4m` must be exactly one of: Machine, Method, Material, Man |
+| V5 | Special Characteristic Class | reject_row | Rows with $S \ge 8$ must be evaluated for 'CC' or 'SC' classification |
+| V6 | Honest Abstention | reject_row | No fabricated engineer names, completion dates, or post-action ratings |

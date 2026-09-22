@@ -402,10 +402,10 @@ def _load_capability_contract(capability_id: str) -> str:
 def _load_skill_for_capability(capability_id: str) -> str:
     """Loads the procedural skill workflow matching the declared capability."""
     skill_map = {
-        "control_plan_from_pfmea": "skills/convert_pfmea_to_control_plan.md",
-        "pfmea_aiag_to_vda": "skills/convert_pfmea_aiag_to_vda.md",
-        "dfmea_aiag_to_vda": "skills/convert_dfmea_aiag_to_vda.md",
-        "dfmea_to_pfmea": "skills/link_dfmea_to_pfmea.md",
+        "control_plan_from_pfmea": "skills/control_plan_mapping.md",
+        "pfmea_aiag_to_vda": "skills/pfmea_vda_mapping.md",
+        "dfmea_aiag_to_vda": "skills/dfmea_vda_mapping.md",
+        "dfmea_to_pfmea": "skills/dfmea_to_pfmea_linking.md",
     }
     rel_path = skill_map.get(capability_id)
     if rel_path:
@@ -1143,6 +1143,11 @@ def main():
     parser.add_argument("--capability", "-c", type=str, default=None, help="Capability ID")
 
     args = parser.parse_args()
+
+    # If -i was provided with a file path, route it to args.file (Scenario 1)
+    if not args.file and args.item and (args.item.endswith(".xlsx") or os.path.exists(args.item)):
+        args.file = args.item
+        args.item = None
 
     if not args.file and not args.item and not args.task:
         parser.print_help()

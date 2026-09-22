@@ -1,40 +1,23 @@
-# Capability: dfmea_aiag_to_vda
+# Capability Contract: dfmea_aiag_to_vda
 
 ## Consumer
-
 Product Design Engineers, Systems Engineering Leads, and Functional Safety Auditors harmonizing Design FMEAs to the AIAG-VDA 1st Edition standard.
 
 ## Purpose
+Convert a legacy AIAG 4th Edition DFMEA into a fully compliant AIAG-VDA 1st Edition 7-Step DFMEA document.
+Core question answered: **Given this legacy DFMEA, how is it correctly restructured into the 3-level design structure hierarchy (System, System Element, Component Element), with reordered failure net, and Action Priority (AP)?**
 
-Convert legacy AIAG Design FMEAs (DFMEA) into the AIAG-VDA 7-Step Design format:
-- **Step 2 (Structure Analysis):** Higher Level Element (System), Focus Element (Subsystem), Lower Level Element (Component).
-- **Step 3 (Function Analysis):** Functions and requirements of Higher Level, Focus Element, and Lower Level.
-- **Step 4 (Failure Analysis):** Failure Effect (FE at vehicle/system level), Failure Mode (FM at focus subsystem level), Design Cause (FC at component/physical level).
-- **Step 5 (Risk Analysis):** Prevention Controls, Severity (S), Occurrence (O), Detection Controls, Detection (D), Action Priority (AP: H, M, L).
-- **Step 6 (Optimization):** Design improvements, FEA simulations, prototype testing, responsible engineer, completion date, status.
-- **Step 7 (Results Documentation):** Traceability from product requirements to design verification.
+## Applicable Methodology Skills
+- `skills/source_preservation.md` — Invariant of verbatim carry, 1-to-1 row preservation, and zero hallucination.
+- `skills/vda_framework.md` — 7-Step harmonized structure, reordered failure chain, and section banding.
+- `skills/dfmea_vda_mapping.md` — AIAG 4th Edition DFMEA to AIAG-VDA 7-Step mapping rules.
 
-## Inputs (Strictly 2 Scenarios)
+## The 3-Level Design Structure Hierarchy
+1. **Higher Level Element (1. System):** Top-level system or vehicle item (e.g. `"Electrical Power Distribution"`). Constant across all rows of the system.
+2. **Focus Element (2. System Element / Interface):** Subsystem or assembly under evaluation (e.g. `"Bus Bar"`).
+3. **Lower Level Element (3. Component Element):** Component part or material interface responsible for the failure cause.
 
-The agent picks exactly one path based on user input:
-
-- **Scenario 1 — Document Provided (File upload):** `file_path` — uploaded legacy AIAG DFMEA `.xlsx` workbook.
-- **Scenario 2 — No Document Provided (RAG):** `production_item_name` — queried from product design vector store via RAG.
-
-## Tool hints
-
-Pick the retrieval skill matching the input scenario, then assemble and validate:
-
-- **Scenario 1:** `parse_pfmea_workbook(file_path)` (or workbook parser).
-- **Scenario 2:** `retrieve_from_rag(production_item_name)`.
-
-After retrieval: `excel_builder(mapped_context, draft_fields, document_type="dfmea_aiag_to_vda")` to assemble rows, then `validator`, then `excel_exporter`.
-
-## Default budget
-
-40,000 tokens · 5 tool calls
-
-## Output schema
+## 20-Column Canonical Output Schema
 
 ```json
 [
@@ -63,19 +46,28 @@ After retrieval: `excel_builder(mapped_context, draft_fields, document_type="dfm
 ]
 ```
 
-## Abstention
+## Field Derivation & Preservation Policy
 
-Fields that **must remain blank** when not found in source evidence:
-- `responsible_engineer`, `target_date`, `action_status` — never fabricate personnel or timelines.
-- CAD / CAE drawing numbers — never invent drawing or model IDs.
-- Post-action design ratings — never simulate post-mitigation S, O, D without validated FEA or test results.
+1. **CARRY (Source Preservation):**
+   - Core failure chain: `Failure Effect (FE)`, `Severity Rating (S)`, `Failure Mode (FM)`, `Design Cause (FC)`, `Prevention Control`, `Occurrence Rating (O)`, `Detection Control`, `Detection Rating (D)` are copied verbatim.
+   - Reordering rule: `Failure Effect` and `Severity` precede `Failure Mode`.
+   - Focus function / requirement is carried directly from source.
 
-## Verification rules
+2. **AUTHOR (Grounded Quality Engineering Fields):**
+   - 3-level structure elements (`higher_level_element`, `focus_element`, `lower_level_element`) and their corresponding functions/characteristics are grounded in the source function groups and engineering specifications.
+   - `action_priority_ap`: Computed deterministically from $S \times O \times D$ using the AIAG-VDA Action Priority table (`H`, `M`, `L`). Replaces legacy RPN.
 
-| # | Rule | On fail | Description |
+3. **ABSTAIN (Honest Blanks):**
+   - Design optimization fields (`responsible_engineer`, `target_date`, `action_status`, post-action ratings) remain blank unless verified test results or engineering signoffs exist in source.
+   - CAD/CAE model IDs and drawing numbers remain honest blanks unless provided.
+
+## Verification & Acceptance Criteria
+
+| # | Rule | Enforcement | Description |
 |---|---|---|---|
-| V1 | 3-Level Breakdown | reject_document | Higher Level (System), Focus Element, and Lower Level (Component) must be populated |
-| V2 | Functional Grounding | reject_row | Design causes must relate to physics/material properties (wear, fatigue, thermal expansion) |
-| V3 | Action Priority Validity | reject_row | Action Priority must strictly conform to AIAG-VDA $S \times O \times D$ matrix |
-| V4 | Special Characteristic Class | reject_row | Any design characteristic with $S \ge 8$ must have CC or SC designation |
-| V5 | Honest Abstention | reject_row | No fabricated engineering signoffs or test completion dates |\n
+| V1 | Schema Completeness | reject_document | Every row contains all 20 canonical AIAG-VDA Design keys |
+| V2 | Exact Row Count Equality | reject_document | Exactly 1-to-1 row count matching source failure modes (e.g. 35 rows in $\to$ 35 rows out) |
+| V3 | 3-Level Hierarchy Consistency | reject_document | Higher Level (System) must remain constant; Focus Element must be populated and consistent |
+| V4 | Action Priority Validity | reject_row | Action Priority must strictly be 'H', 'M', or 'L' based on AIAG-VDA rubric |
+| V5 | Special Characteristic Class | reject_row | Characteristics with $S \ge 8$ must be evaluated for 'CC' or 'SC' classification |
+| V6 | Honest Abstention | reject_row | No fabricated engineer names, test completion dates, or speculative post-action ratings |
