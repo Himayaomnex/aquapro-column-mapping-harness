@@ -83,7 +83,7 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
     sheet_name, header_row_idx = find_best_sheet_and_header(wb)
     sheet = wb[sheet_name]
 
-    # Extract headers
+    # Extract headers (supporting multi-tier headers e.g. Row 1: Requirements, Row 2: Product / Process)
     headers: List[str] = []
     op_col_indices: List[int] = []
     desc_col_indices: List[int] = []
@@ -91,22 +91,61 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
     char_col_indices: List[int] = []
     prod_col_indices: List[int] = []
 
-    for col_idx in range(1, sheet.max_column + 1):
-        val = sheet.cell(row=header_row_idx, column=col_idx).value
-        h_str = str(val).strip() if val is not None else f"Column_{col_idx}"
-        headers.append(h_str)
+    r1_vals = [sheet.cell(row=header_row_idx, column=c).value for c in range(1, sheet.max_column + 1)]
+    data_start_row = header_row_idx + 1
 
+    subhead_keywords = {
+        "product", "process", "pc id", "char id", "no", "name", "s.no", "size", "frequency",
+        "spec", "type", "method", "class", "fc", "fm", "fe", "pc", "dc", "det", "occ", "sev"
+    }
+
+    if header_row_idx < sheet.max_row:
+        r2_vals = [sheet.cell(row=header_row_idx + 1, column=c).value for c in range(1, sheet.max_column + 1)]
+        r2_non_empty = [str(v).strip() for v in r2_vals if v is not None and str(v).strip() != ""]
+        has_long_text = any(len(v) > 35 for v in r2_non_empty)
+        has_subhead_match = any(v.lower() in subhead_keywords for v in r2_non_empty)
+        fills_blanks = any(r1_vals[i] is None and r2_vals[i] is not None for i in range(len(r1_vals)))
+
+        if (has_subhead_match or fills_blanks) and not has_long_text:
+            for i in range(len(r1_vals)):
+                v1 = str(r1_vals[i]).strip() if r1_vals[i] is not None else ""
+                v2 = str(r2_vals[i]).strip() if r2_vals[i] is not None else ""
+                if v1 and v2:
+                    if v2.lower() == "product":
+                        headers.append("Product Characteristic")
+                    elif v2.lower() == "process":
+                        headers.append("Process Characteristic")
+                    else:
+                        headers.append(f"{v1}: {v2}")
+                elif v1:
+                    headers.append(v1)
+                elif v2:
+                    if v2.lower() == "product":
+                        headers.append("Product Characteristic")
+                    elif v2.lower() == "process":
+                        headers.append("Process Characteristic")
+                    else:
+                        headers.append(v2)
+                else:
+                    headers.append(f"Column_{i+1}")
+            data_start_row = header_row_idx + 2
+        else:
+            headers = [str(v).strip() if v is not None else f"Column_{i+1}" for i, v in enumerate(r1_vals)]
+    else:
+        headers = [str(v).strip() if v is not None else f"Column_{i+1}" for i, v in enumerate(r1_vals)]
+
+    for col_idx, h_str in enumerate(headers):
         h_lower = h_str.lower()
         if any(k in h_lower for k in ["operation number", "op number", "op no", "op #", "operation #"]):
-            op_col_indices.append(col_idx - 1)
+            op_col_indices.append(col_idx)
         elif any(k in h_lower for k in ["operation description", "operation name"]):
-            desc_col_indices.append(col_idx - 1)
+            desc_col_indices.append(col_idx)
         elif any(k in h_lower for k in ["process function", "process segment"]):
-            seg_col_indices.append(col_idx - 1)
-        elif any(k in h_lower for k in ["characteristic id", "char id", "char no", "characteristic #", "char #"]):
-            char_col_indices.append(col_idx - 1)
+            seg_col_indices.append(col_idx)
+        elif any(k in h_lower for k in ["characteristic id", "char id", "char no", "characteristic #", "char #", "pc id"]):
+            char_col_indices.append(col_idx)
         elif any(k in h_lower for k in ["product characteristic", "product"]):
-            prod_col_indices.append(col_idx - 1)
+            prod_col_indices.append(col_idx)
 
     raw_rows: List[Dict[str, Any]] = []
     
@@ -117,10 +156,10 @@ def workbook_parser(file_path: str) -> List[Dict[str, Any]]:
     last_char_val = None
     last_prod_val = None
 
-    for row_idx in range(header_row_idx + 1, sheet.max_row + 1):
+    for row_idx in range(data_start_row, sheet.max_row + 1):
         row_vals: List[Any] = [sheet.cell(row=row_idx, column=c).value for c in range(1, len(headers) + 1)]
         
-        # Check if entire row is empty
+        # Check if entire row is empty or lacks substantive content
         if not any(v is not None and str(v).strip() != "" for v in row_vals):
             continue
 

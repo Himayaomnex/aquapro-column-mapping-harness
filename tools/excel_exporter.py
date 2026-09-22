@@ -252,7 +252,13 @@ def _export_cnc_format(rows: List[Any], output_path: str, part_name: str = "CNC 
     ws_b = wb.create_sheet(title="Body")
     _build_cnc_body(ws_b, rows)
 
-    wb.save(output_path)
+    try:
+        wb.save(output_path)
+    except PermissionError:
+        base, ext = os.path.splitext(output_path)
+        alt_path = f"{base}_new{ext}"
+        print(f"[Excel Exporter Warning] '{output_path}' is open in Excel. Saved to '{alt_path}' instead.")
+        wb.save(alt_path)
     wb.close()
 
 
@@ -471,10 +477,6 @@ def excel_exporter(
     )
 
     # Detect dataset / template match
-    has_apqp_char_ids = any(
-        bool(getattr(r, "characteristic_id", None) or (isinstance(r, dict) and r.get("characteristic_id")))
-        for r in rows
-    )
     has_cd6_ops = any(
         str(getattr(r, "operation_number", "") if hasattr(r, "operation_number") else r.get("operation_number", ""))
         in ("819", "820", "840", "845", "855", "955")
@@ -483,7 +485,7 @@ def excel_exporter(
     is_cd6 = "cd6" in abs_output_path.lower() or any(
         "cd6" in str(getattr(r, "production_item_name", "")).lower() or
         "cd6" in str(getattr(r, "operation_name", "")).lower() for r in rows[:10]
-    ) or has_apqp_char_ids or has_cd6_ops
+    ) or has_cd6_ops
 
     try:
         if is_control_plan:

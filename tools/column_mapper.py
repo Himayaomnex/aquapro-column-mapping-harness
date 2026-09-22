@@ -30,7 +30,8 @@ SYNONYM_MAP: Dict[str, List[str]] = {
     ],
     "characteristic_id": [
         "characteristic id", "characteristic no", "characteristic number",
-        "char id", "char no", "char #", "characteristic_id"
+        "char id", "char no", "char #", "characteristic_id",
+        "pc id", "requirements: pc id", "pc / pd", "pc/pd"
     ],
     "csr": [
         "csr", "ccs", "customer specific requirement", "customer specific requirements"
@@ -324,6 +325,7 @@ def column_mapper(raw_rows: List[Dict[str, Any]]) -> MappedContext:
             detective_control=str(canonical_values.get("detective_control")).strip() if canonical_values.get("detective_control") else None,
             detection_rating=_parse_int(canonical_values.get("detection_rating")),
             characteristic_id=str(canonical_values.get("characteristic_id")).strip() if canonical_values.get("characteristic_id") else None,
+            special_characteristic_class=str(canonical_values.get("special_characteristic_class")).strip() if canonical_values.get("special_characteristic_class") else None,
             csr=str(canonical_values.get("csr")).strip() if canonical_values.get("csr") else None,
             responsibility=str(canonical_values.get("responsibility")).strip() if canonical_values.get("responsibility") else None,
             source_sheet=str(row.get("_source_sheet") or "Body"),

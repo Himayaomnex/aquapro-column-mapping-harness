@@ -24,6 +24,7 @@ class MappedContextItem(BaseModel):
     product_characteristic: Optional[str] = None
     process_characteristic: Optional[str] = None
     characteristic_id: Optional[str] = None
+    special_characteristic_class: Optional[str] = None
     csr: Optional[str] = None
     responsibility: Optional[str] = None
 
