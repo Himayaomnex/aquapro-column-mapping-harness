@@ -269,21 +269,7 @@ def _build_control_plan_rows(
         # 2. AUTHOR Fields
         proc_char = draft.get("process_characteristic")
         if proc_char is None:
-            first_proc = next((it.process_characteristic for it in group_items if it.process_characteristic), None)
-            if first_proc:
-                proc_char = first_proc
-            else:
-                first_cause = next((it.failure_cause for it in group_items if it.failure_cause), None)
-                if first_cause:
-                    cause_clean = re.sub(
-                        r'^(insufficient|improper|incorrect|lack of|excessive)\s+',
-                        '',
-                        first_cause,
-                        flags=re.IGNORECASE
-                    ).strip()
-                    proc_char = cause_clean.capitalize()
-                else:
-                    proc_char = None
+            proc_char = next((it.process_characteristic for it in group_items if it.process_characteristic), None)
 
         spec_class = draft.get("special_characteristic_class")
         if spec_class is None:
