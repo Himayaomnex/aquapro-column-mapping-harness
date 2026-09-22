@@ -1,56 +1,49 @@
 ---
 name: pfmea_vda_mapping
-purpose: The column-by-column contract for converting an AIAG 4th Edition Process FMEA into the AIAG-VDA 7-Step layout.
+purpose: Transformation methodology and alignment principles for converting legacy AIAG 4th Edition Process FMEAs to the AIAG-VDA 7-Step standard.
 applies_when: converting a Process FMEA from AIAG 4th Edition to AIAG-VDA
 not_for: Design FMEAs; Control Plans; Process Flows
 ---
 
-# PFMEA: AIAG 4th Edition → AIAG-VDA Mapping
+# PFMEA: AIAG 4th Edition → AIAG-VDA Alignment
 
 Builds on `source_preservation`, `vda_framework`, and `vda_four_m`.
 
-## What carries — do not re-decide this
+## Structural Alignment Principles
 
-All fifteen core 4th Edition columns carry to the VDA layout. Column placement is declared here — it is never a matter of judgement.
+The transition from legacy AIAG 4th Edition to AIAG-VDA 7-Step PFMEA restructures process risk analysis into standardized steps:
 
-| AIAG 4th Edition source column | VDA target column | Note |
-|---|---|---|
-| Production Item Name | `process_item` | |
-| Operation Number | `process_step` | Combined with Operation Name |
-| Operation Name | `process_step` | Combined with Operation Number |
-| Potential Effects of Failure | `failure_effect_fe` | Moved before Failure Mode |
-| Severity | `severity_rating` | Moved before Failure Mode |
-| Potential Failure Mode | `failure_mode_fm` | |
-| Class (CC / SC) | `special_characteristic_class` | |
-| Potential Cause(s) / Mechanism(s) of Failure | `failure_cause_fc` | |
-| Current Process Controls — Prevention | `current_prevention_control` | |
-| Occurrence | `occurrence_rating` | |
-| Current Process Controls — Detection | `current_detection_control` | |
-| Detection | `detection_rating` | |
-| Product Characteristic | `product_characteristic` | |
-| Process Characteristic | `process_characteristic` | |
+### 1. Structure Analysis
+- **Process Item:** Carried directly from the header or part identification.
+- **Process Step:** Combines operation numbering and operation nomenclature to establish clear station context.
+- **Work Element (4M):** Synthesized from the root cause mechanism using the `vda_four_m` standard (`Machine`, `Method`, `Material`, `Man`).
 
-## What is authored — per row
+### 2. Function Analysis
+- **Process Function:** Defines the intended achievement of the process step. Formulated concisely and maintained uniformly across all rows within the same operation.
+- **Characteristics:** Carried directly from source product specifications and process parameters.
 
-**`work_element_4m`** — Apply the `vda_four_m` skill to the failure cause. The result is exactly one of: Man, Machine, Material, Method.
+### 3. Failure Analysis (The Reordered Failure Net)
+- In AIAG-VDA, the failure chain sequence is harmonized to flow from effect to root mechanism:
+  - **Failure Effect & Severity:** Placed first in the failure sequence. Severity score is strictly preserved from the source.
+  - **Failure Mode:** Carried verbatim.
+  - **Failure Cause:** Carried verbatim as the originating mechanism.
+  - **Special Characteristics (CC/SC):** Transferred directly without alteration.
 
-**`process_function`** — State what the overall process step achieves. This is one sentence, derived from the operation name and its characteristics. It must be identical on every row belonging to the same operation.
+### 4. Risk Analysis & Evaluation
+- **Controls & Ratings:** Current prevention controls, detection controls, and their respective Occurrence (O) and Detection (D) ratings are carried verbatim.
+- **Action Priority (AP):** Replaces the legacy Risk Priority Number (RPN = S × O × D). Evaluated deterministically from the (S, O, D) combination against the standardized AIAG-VDA lookup matrix to assign High (`H`), Medium (`M`), or Low (`L`).
 
-**`action_priority_ap`** — Computed deterministically from the carried S, O, D values using the AIAG-VDA Action Priority table. Result is H, M, or L. RPN is not used.
+### 5. Optimization & Blanking Policy
+- Subsequent mitigation fields (prevention actions, detection actions, responsible owners, target completion dates) are preserved only if documented in the source record. They must never be artificially authored.
 
-## What remains blank
+## Handling Real-World Workbooks
+- **Complex & Hierarchical Headers:** Legacy workbooks frequently utilize multi-tier or merged header bands. Identify the true data header row through column semantics rather than assuming a fixed row index.
+- **Header Synonyms & Variants:** Recognize semantic equivalents (e.g., "Occurrence Rating", "O", "Occ") through concept mapping rather than requiring exact string matches.
+- **Unmapped Attributes:** Columns outside the standard schema must be logged in the audit trail rather than silently discarded or forced into unrelated targets.
 
-Optimisation columns (`prevention_action`, `detection_action`, `responsible_person`, `target_completion_date`) remain empty unless the source explicitly provides them. Never author project schedules or personnel names.
-
-## Special cases
-
-Two-tier headers are common in customer files (a merged band row above the real header row). Identify the actual header row from the sheet structure before mapping. The presence of merged cells above the header does not change which row the column names are taken from.
-
-When a source file uses alias column names (e.g. "Occurrence Rating" instead of "Occurrence"), identify the canonical concept from the content and map accordingly. Genuinely unresolved columns are reported as unmapped — never silently guessed.
-
-## Validation
-- Row count equals source row count.
-- All carried cells are byte-identical to source.
-- `work_element_4m` is one of the four permitted values.
-- `action_priority_ap` is H, M, or L.
-- `process_function` is identical across all rows of the same operation.
+## Validation Criteria
+- Exact 1-to-1 row preservation matching source operations.
+- Byte-for-byte fidelity across all carried content.
+- Work elements strictly conform to the 4M classification.
+- Action Priority is strictly evaluated as H, M, or L.
+- Process functions remain consistent across each operation group.

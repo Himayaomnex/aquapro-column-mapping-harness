@@ -1,38 +1,44 @@
 ---
 name: vda_four_m
-purpose: How to classify the work element category for each failure cause in an AIAG-VDA Process FMEA.
+purpose: Classification methodology for assigning 4M work element categories to process failure causes in AIAG-VDA Process FMEA.
 applies_when: authoring the work element column in an AIAG-VDA PFMEA
-not_for: Design FMEAs — DFMEA has no 4M column
+not_for: Design FMEAs — DFMEA does not evaluate manufacturing work elements
 ---
 
 # Four M Classification
 
-In the AIAG-VDA Process FMEA, every failure cause originates from a process work element. That work element is classified into exactly one of four categories.
+In AIAG-VDA Process FMEA, every failure cause originates from a specific process work element. Each work element is classified into one of four standard categories.
 
-## The four permitted values
+## Permitted Categories
 
-**Man** — The cause originates from human action or inaction.
-Examples: operator loading error, missed inspection step, insufficient training, fatigue, incorrect manual torque.
+**Man**
+- Root cause originates from human operation, cognitive load, or physical execution.
+- Examples: operator part loading orientation, skipped manual verification, ergonomic strain, incorrect manual torque application.
 
-**Machine** — The cause originates from equipment, tooling, or fixturing.
-Examples: tool wear, fixture misalignment, sensor drift, press pressure drop, calibration failure, robot positioning error.
+**Machine**
+- Root cause originates from machinery, tooling, sensors, or automated fixtures.
+- Examples: cutting tool wear, fixture locator misalignment, pneumatic pressure loss, transducer drift, robotic motion repeatability.
 
-**Material** — The cause originates from incoming material or components.
-Examples: out-of-specification sheet thickness, contaminated fluid, wrong alloy grade, defective supplier subcomponent, surface oxidation.
+**Material**
+- Root cause originates from incoming raw materials, parts, or consumable fluids.
+- Examples: raw material tensile variation, chemical contamination, supplier component flash, surface corrosion on incoming stock.
 
-**Method** — The cause originates from the process design or work instructions.
-Examples: incorrect parameter recipe, ambiguous work instruction, wrong operation sequence, missing cooling cycle, inadequate procedure.
+**Method**
+- Root cause originates from process parameters, operational recipes, or work instructions.
+- Examples: thermal profile recipe, incorrect tightening sequence, inadequate dwell time, ambiguous assembly instructions.
 
-## What is not permitted
+## Harmonization Rules
 
-"Milieu" (environment) is not a valid category. Environmental factors belong under Machine (facility/equipment controls) or Method (process design). A documented defect occurred when a paraphrased copy of this vocabulary introduced "Milieu" into a delivered customer document — this rule exists to prevent that.
+In AIAG-VDA 1st Edition harmonization, environmental influences (formerly termed "Milieu") are mapped into the controlling mechanism:
+- Equipment-related environmental controls (ambient temperature control, ventilation) are classified under **Machine**.
+- Environmental operating specifications and procedures are classified under **Method**.
 
-## How to assign the category
+## Assignment Methodology
 
-1. Read the failure **Cause** — not the mode, not the effect. The category describes where the cause comes from.
-2. Identify the dominant mechanism: is it the operator, the equipment, the incoming material, or the process design?
-3. If more than one category could apply, select the one whose elimination would most directly remove the cause.
-4. The cell must never be empty. If the cause text is ambiguous, classify from the failure mode's mechanism.
+1. Analyze the root **Cause** rather than the failure mode or effect.
+2. Identify the primary physical or operational mechanism responsible for initiating the failure chain.
+3. If multiple factors contribute, select the category corresponding to the primary containment or prevention point.
+4. The classification field must never remain blank.
 
-## Validation
-The permitted values are: `Man`, `Machine`, `Material`, `Method` — case-sensitive, exactly as written. Any other value is a validation failure.
+## Validation Principles
+The category must strictly evaluate to one of: `Man`, `Machine`, `Material`, or `Method`. Any variation is rejected during schema validation.

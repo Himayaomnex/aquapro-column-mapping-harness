@@ -13,21 +13,21 @@ The output answers one question: **For each critical design characteristic in th
 
 Every row in the output must conform to the following schema:
 
-| # | Field | Type | Policy |
+| Field | Type | Policy | Description |
 |---|---|---|---|
-| 1 | `dfmea_part_name` | string | CARRY — from DFMEA production item |
-| 2 | `design_characteristic` | string | CARRY — from DFMEA function or requirement |
-| 3 | `dfmea_severity_rating` | integer | CARRY — must not be downgraded |
-| 4 | `special_characteristic_class` | `CC` \| `SC` \| null | CARRY — must not be downgraded |
-| 5 | `dfmea_failure_effect` | string | CARRY |
-| 6 | `dfmea_design_cause` | string | CARRY |
-| 7 | `pfmea_operation_number` | string | AUTHOR — corresponding manufacturing operation |
-| 8 | `pfmea_operation_name` | string | AUTHOR — name of the manufacturing operation |
-| 9 | `pfmea_process_failure_mode` | string | AUTHOR — manufacturing manifestation of the design cause |
-| 10 | `pfmea_process_failure_cause` | string | AUTHOR — process root cause linked to design mechanism |
-| 11 | `error_proofing_poka_yoke` | string \| null | AUTHOR — mandatory when S ≥ 8; blank otherwise |
-| 12 | `recommended_process_control` | string \| null | AUTHOR — derived from design prevention intent |
-| 13 | `recommended_detection_method` | string \| null | AUTHOR — derived from design detection intent |
+| `dfmea_part_name` | string | CARRY | Part or product name from DFMEA |
+| `design_characteristic` | string | CARRY | Design characteristic or functional requirement |
+| `dfmea_severity_rating` | integer | CARRY | Severity score; must not be altered or downgraded |
+| `special_characteristic_class` | `CC` \| `SC` \| null | CARRY | Critical (`CC`) or Significant (`SC`) designation |
+| `dfmea_failure_effect` | string | CARRY | Potential effect of failure on the system or end user |
+| `dfmea_design_cause` | string | CARRY | Root design cause or failure mechanism |
+| `pfmea_operation_number` | string | AUTHOR | Associated manufacturing operation sequence number |
+| `pfmea_operation_name` | string | AUTHOR | Name of the manufacturing process or station |
+| `pfmea_process_failure_mode` | string | AUTHOR | Manufacturing manifestation of the design failure mode |
+| `pfmea_process_failure_cause` | string | AUTHOR | Process-side root cause linked to the manufacturing mechanism |
+| `error_proofing_poka_yoke` | string \| null | AUTHOR | Automated error-proofing or interlock; required when S ≥ 8 |
+| `recommended_process_control` | string \| null | AUTHOR | Prevention method derived from design intent |
+| `recommended_detection_method` | string \| null | AUTHOR | In-process detection or verification technique |
 
 ## Acceptance Criteria
 

@@ -1,52 +1,50 @@
 ---
 name: control_plan_mapping
-purpose: The column-by-column contract for deriving a 16-column AIAG Control Plan from a Process FMEA.
+purpose: Methodology and derivation rules for transforming Process FMEA records into an AIAG Control Plan.
 applies_when: deriving a Control Plan from a Process FMEA
 not_for: Design FMEAs; AIAG-VDA FMEA conversions
 ---
 
 # Control Plan Derivation from PFMEA
 
-Builds on `source_preservation`. Governed by the AIAG APQP / Control Plan Reference Manual.
+Builds on `source_preservation`. Governed by the AIAG APQP and Control Plan Reference Manual.
 
-## The three column policies
+## Core Transformation Policies
 
-Every column in a Control Plan belongs to exactly one policy:
+Every field in an AIAG Control Plan belongs to exactly one transformation policy:
 
-**CARRY** — Copied verbatim from the source PFMEA. No modification.
+- **CARRY** — Transferred verbatim from the source PFMEA without modification, rephrasing, or omission.
+- **AUTHOR** — Synthesized from verified evidence in the corresponding PFMEA row, grounded in the process mechanisms.
+- **ABSTAIN** — Left intentionally blank. Populating these fields without approved engineering drawings, calibration certs, or physical inspection plans constitutes audit non-compliance.
 
-**AUTHOR** — Derived from source evidence in the same row. The value must be grounded in what the source PFMEA says about that operation and characteristic — not in general engineering knowledge.
+## Derivation Methodology by Functional Area
 
-**ABSTAIN** — Left blank. These fields require data that only exists on an approved engineering drawing, calibration record, or sampling plan. Inventing them causes immediate failure in an OEM PPAP audit. A blank is correct; a fabricated value is a defect.
+### 1. Process Identification & Hierarchy (CARRY)
+- **Part and Process Identification:** Carried verbatim from the source header and operation details.
+- **Process Segment:** Must be preserved on every row where present in the source; never drop or overwrite with a generic label.
+- **Operation Number & Name:** Transferred exactly as structured in the source PFMEA.
 
-## The 16 columns
+### 2. Characteristics & Specifications
+- **Product Characteristic (CARRY):** Direct transfer of the dimensional, visual, or functional requirement.
+- **Process Characteristic (CARRY / AUTHOR):** Transferred directly if defined in source; otherwise derived from the root failure cause (identifying the machine parameter or process condition that influences the characteristic).
+- **Special Characteristics (AUTHOR):** Designate Critical (`CC`) or Significant (`SC`) only when Severity rating is 8 or higher, or when explicitly designated in the source. Otherwise remains null.
+- **Engineering Specifications & Tolerances (ABSTAIN):** Must remain blank unless verified against an approved engineering drawing.
 
-| # | Field | Policy | Derivation rule |
-|---|---|---|---|
-| 1 | `production_item_name` | CARRY | |
-| 2 | `process_segment_name` | CARRY | Must never be dropped when present in source |
-| 3 | `operation_number` | CARRY | |
-| 4 | `operation_name` | CARRY | |
-| 5 | `product_characteristic` | CARRY | |
-| 6 | `process_characteristic` | CARRY if present in source; AUTHOR from failure cause if absent | Derived from the cause of the failure — the machine parameter or process condition that drives the characteristic |
-| 7 | `special_characteristic_class` | AUTHOR | Set to `CC` when S ≥ 8 and the characteristic is safety-critical; `SC` when S ≥ 8 and customer-designated significant; null otherwise |
-| 8 | `specification_tolerance` | ABSTAIN | Requires approved engineering drawing |
-| 9 | `evaluation_measurement_technique` | AUTHOR | Derived directly from the source detection control |
-| 10 | `tool_number` | ABSTAIN | Requires official tooling register |
-| 11 | `tool_name` | ABSTAIN | Requires official tooling register |
-| 12 | `gage_number` | ABSTAIN | Requires calibration record |
-| 13 | `control_method` | AUTHOR | Derived directly from the source prevention control |
-| 14 | `sample_size` | ABSTAIN | Requires approved sampling plan |
-| 15 | `sample_frequency` | ABSTAIN | Requires approved sampling plan |
-| 16 | `reaction_plan` | AUTHOR | Derived only when column 9 (`evaluation_measurement_technique`) is non-null — states the containment action when the measurement detects a nonconformance |
+### 3. Process Controls & Evaluation Methods (AUTHOR)
+- **Control Method:** Derived directly from the source PFMEA prevention control, stating the operational method applied at the workstation.
+- **Evaluation / Measurement Technique:** Derived directly from the source PFMEA detection control, defining the inspection or measurement gage/tooling principle.
 
-## Why ABSTAIN fields must remain blank
+### 4. Reaction Plan & Containment (AUTHOR)
+- Author a specific containment and corrective action when an evaluation or measurement technique exists.
+- If no measurement technique is specified, the reaction plan must remain blank to prevent ungrounded instructions.
 
-AIAG PPAP 4th Edition permits blank tooling, gage, and sampling columns when those plans have not yet been assigned. It does not permit invented values. An OEM PPAP auditor cross-references these fields against physical records — a fabricated number that does not match any record causes immediate rejection. A blank is auditable; a fiction is not.
+### 5. Physical Records & Sampling (ABSTAIN)
+- **Tooling, Fixture, and Gage Identifiers:** Must remain blank unless cross-referenced to an official tooling inventory or calibration record.
+- **Sample Size & Frequency:** Must remain blank unless backed by an approved statistical sampling plan.
+- Fabricating serial numbers, gage IDs, or sample frequencies violates AIAG PPAP 4th Edition audit standards.
 
-## Validation
-- Row count equals source row count.
-- `process_segment_name` is populated on every row where the source provides it.
-- All CARRY cells are byte-identical to source.
-- All ABSTAIN cells are null or empty.
-- `reaction_plan` is null when `evaluation_measurement_technique` is null.
+## Validation Principles
+- One-to-one row correspondence with source operations.
+- Verbatim preservation of all carried source content.
+- Strict enforcement of abstention on unverified physical records.
+- Reaction plans populated only when detection techniques are present.

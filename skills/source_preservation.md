@@ -7,26 +7,25 @@ not_for: pure greenfield generation with no source document
 
 # Source Preservation
 
-The uploaded workbook is the customer's authoritative engineering record. These rules apply without exception in every transformation:
+The customer workbook represents the authoritative engineering baseline. These principles apply without exception in every document transformation:
 
-## Rules
+## Core Principles
 
-**1. Carried content is copied verbatim.**
-Same text, same numbers, same abbreviations, same row order. Do not improve, rephrase, or correct customer content. A misspelling in the source ("Occurence") is carried as-is.
+**1. Verbatim Transfer**
+Carried content must be transferred verbatim: exact terminology, numeric values, abbreviations, and engineering phrasing. Do not rephrase, standardize, or attempt to correct customer terminology. Retain original spelling and designations as recorded.
 
-**2. The output has exactly as many rows as the source.**
-One source row produces one output row. A row added is an invention. A row removed is data loss. The documented failure mode for this task was an agent turning a 35-row source into 106 rows — that is the defect this rule exists to prevent.
+**2. Strict Row-to-Row Fidelity**
+Every source failure analysis or process operation corresponds strictly to one row in the output document. Row inflation distorts risk metrics, while row consolidation results in loss of engineering traceability.
 
-**3. Only author what the source cannot supply.**
-Author only the columns that the target standard introduces and the source has no equivalent for. Every authored value must be grounded in that row's own carried content.
+**3. Minimal Authoring Boundary**
+Author only the specific fields introduced by the target standard that have no direct counterpart in the source record. Every authored value must be directly traceable to evidence within that specific row.
 
-**4. Never overwrite customer data with a default.**
-If the source already provides content for a column — including `Process Segment Name`, existing controls, or classifications — carry it. Do not replace it with a generated default.
+**4. Preservation of Existing Classifications & Segments**
+If the source workbook provides classifications, process segments, or control designations, retain them. Never overwrite customer-defined classifications with system defaults.
 
-**5. Unmapped source columns are reported, never dropped.**
-Any source column with no target equivalent is listed as unmapped in the audit trail. It is never silently discarded or forced into an unrelated column.
+**5. Transparent Tracking of Unmapped Data**
+Source columns that do not map to the target standard must be captured in the execution audit log rather than discarded silently or forced into incompatible fields.
 
-## Validation
-- Row count: output row count must equal source row count.
-- Preservation: every carried cell must be byte-identical to its source cell.
-- A single reworded carried cell is a validation failure.
+## Validation Principles
+- Total output rows must match source input rows exactly.
+- All transferred content must maintain byte-for-byte fidelity with the source workbook.
